@@ -622,11 +622,6 @@ function buildTicker(){
     `<span class="ticker-item"><span class="tsym">${t.sym}</span><span>—</span></span>`
   );
   document.getElementById('tickerEl').innerHTML = items.join('');
-  const priceCount = Object.keys(prices).length;
-  const sdot = document.getElementById('sdotFinnhub');
-  const slbl = document.getElementById('sFinnhub');
-  if(sdot) sdot.style.background = priceCount > 0 ? '#4caf50' : '#aaa';
-  if(slbl) slbl.textContent = priceCount > 0 ? `Prices: ${priceCount} stocks` : 'Prices: —';
 }
 
 // ══════════════════════════════════════════
