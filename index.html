@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morning Brief — Personal News Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0e0e0e;
+  --paper: #f5f0e8;
+  --paper2: #ede7d9;
+  --accent: #c0392b;
+  --accent2: #1a3a5c;
+  --gold: #b8860b;
+  --muted: #7a7060;
+  --border: #d4c9b0;
+  --card: #faf7f2;
+  --success: #2d6a4f;
+  --sidebar-w: 255px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; line-height: 1.6; min-height: 100vh; }
+
+/* LAYOUT */
+.shell { display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--accent2); color: #e8e0d0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 100; border-right: 3px solid var(--gold); }
+.sidebar-logo { padding: 26px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.sidebar-logo .title { font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 700; color: #fff; line-height: 1.2; }
+.sidebar-logo .subtitle { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.sidebar-date { padding: 12px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: rgba(232,224,208,0.55); border-bottom: 1px solid rgba(255,255,255,0.08); }
+.sidebar-nav { padding: 14px 0; flex: 1; overflow-y: auto; }
+.nav-section-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); padding: 12px 20px 5px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer; font-size: 13px; color: rgba(232,224,208,0.8); transition: all 0.15s; border-left: 3px solid transparent; }
+.nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.nav-item.active { background: rgba(255,255,255,0.1); color: #fff; border-left-color: var(--gold); }
+.nav-item .icon { font-size: 14px; width: 20px; text-align: center; }
+.sidebar-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 10px; color: rgba(232,224,208,0.35); font-family: 'IBM Plex Mono', monospace; }
+
+/* MAIN */
+.main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+
+/* TOP BAR */
+.topbar { background: var(--card); border-bottom: 2px solid var(--border); padding: 12px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 50; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.page-title { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 600; color: var(--ink); }
+.fetch-btn { display: flex; align-items: center; gap: 7px; background: var(--accent); color: #fff; border: none; padding: 9px 20px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: 0.4px; transition: background 0.15s; white-space: nowrap; }
+.fetch-btn:hover { background: #a93226; }
+.fetch-btn:disabled { background: #bbb; cursor: default; }
+.topbar-keys { display: flex; align-items: center; gap: 6px; }
+.key-badge { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 9px; border-radius: 0; cursor: pointer; border: 1px solid; white-space: nowrap; }
+.key-badge.ok { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+.key-badge.missing { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+.api-input { border: 1px solid var(--border); background: var(--paper); font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 6px 10px; color: var(--ink); }
+.api-input:focus { outline: 2px solid var(--accent2); }
+
+/* CONTENT */
+.content { padding: 24px 32px; flex: 1; max-width: 1100px; }
+.page { display: none; }
+.page.visible { display: block; }
+
+/* TICKER — static grid */
+.ticker-strip { background: var(--ink); color: #e8e0d0; padding: 10px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; margin-bottom: 22px; border-top: 2px solid var(--gold); border-bottom: 2px solid var(--gold); }
+.ticker-inner { display: flex; flex-wrap: wrap; gap: 2px 0; }
+.ticker-item { display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-right: 1px solid rgba(255,255,255,0.12); }
+.ticker-item:last-child { border-right: none; }
+.tsym { color: var(--gold); font-weight: 500; }
+.tchg.up { color: #4caf50; }
+.tchg.down { color: #f44336; }
+
+/* DIGEST HEADER */
+.digest-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 22px; border-bottom: 2px solid var(--ink); padding-bottom: 9px; }
+.digest-title { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; }
+.digest-meta { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--muted); }
+
+/* NEWS GRID */
+.news-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 26px; }
+.news-card { background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--accent); padding: 18px 20px; }
+.news-card.bio { border-top-color: var(--success); }
+.news-card.market { border-top-color: var(--gold); }
+.news-card.stock { border-top-color: #4a1259; }
+.news-card.nl { border-top-color: var(--accent2); }
+.news-card.geo { border-top-color: #5d4037; }
+.news-card.sources { border-top-color: #00695c; }
+.card-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+.card-label span { display: inline-block; background: var(--accent); color: #fff; padding: 2px 8px; }
+.news-card.bio .card-label span { background: var(--success); }
+.news-card.market .card-label span { background: var(--gold); color: var(--ink); }
+.news-card.stock .card-label span { background: #4a1259; }
+.news-card.nl .card-label span { background: var(--accent2); }
+.news-card.geo .card-label span { background: #5d4037; }
+.news-card.sources .card-label span { background: #00695c; }
+
+.news-item { padding: 9px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+.news-item:last-child { border-bottom: none; }
+.news-item:hover .nhead { color: var(--accent); }
+.nhead { font-family: 'Playfair Display', serif; font-size: 13.5px; font-weight: 600; line-height: 1.35; margin-bottom: 4px; transition: color 0.15s; }
+.nsummary { font-size: 12px; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.nmeta { display: flex; align-items: center; gap: 7px; margin-top: 5px; flex-wrap: wrap; }
+.nsource { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--accent2); font-weight: 500; }
+.ntime { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: rgba(0,0,0,0.3); }
+.ntag { font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; padding: 1px 6px; background: var(--paper2); border: 1px solid var(--border); }
+.sentiment { font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; padding: 1px 6px; }
+.sentiment.bullish { background: #d4edda; color: #155724; }
+.sentiment.bearish { background: #f8d7da; color: #721c24; }
+.sentiment.neutral { background: #fff3cd; color: #856404; }
+
+/* LOADING */
+.loading-wrap { text-align: center; padding: 48px 32px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+.spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-icon { font-size: 44px; margin-bottom: 14px; }
+
+/* STOCKS PAGE */
+.stocks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+.stock-card { background: var(--card); border: 1px solid var(--border); padding: 16px 18px; }
+.stock-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+.stock-sym { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 500; color: var(--accent2); }
+.stock-name { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.stock-price { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500; text-align: right; }
+
+/* NEWSLETTERS */
+.nl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; }
+.nl-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent2); padding: 16px 18px; }
+.nl-name { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+.nl-lang { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 9px; }
+.nl-excerpt { font-size: 12px; color: var(--muted); font-style: italic; line-height: 1.45; }
+.nl-btn { margin-top: 10px; background: none; border: 1px solid var(--accent2); color: var(--accent2); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 4px 11px; cursor: pointer; letter-spacing: 0.8px; transition: all 0.15s; }
+.nl-btn:hover { background: var(--accent2); color: #fff; }
+
+/* SETTINGS */
+.settings-box { background: var(--card); border: 1px solid var(--border); padding: 22px 26px; margin-bottom: 22px; }
+.settings-title { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; margin-bottom: 14px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+.srow { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; flex-wrap: wrap; }
+.slabel { font-size: 12.5px; color: var(--muted); width: 170px; flex-shrink: 0; }
+.sinput { flex: 1; border: 1px solid var(--border); background: var(--paper); font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; padding: 6px 10px; color: var(--ink); min-width: 0; }
+.sinput:focus { outline: 2px solid var(--accent2); }
+.btn-sec { background: none; border: 2px solid var(--accent2); color: var(--accent2); font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: all 0.15s; }
+.btn-sec:hover { background: var(--accent2); color: #fff; }
+.btn-danger { background: none; border: 2px solid var(--accent); color: var(--accent); font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; padding: 7px 16px; cursor: pointer; transition: all 0.15s; }
+.btn-danger:hover { background: var(--accent); color: #fff; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag { font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 9px; background: var(--paper2); border: 1px solid var(--border); cursor: pointer; }
+.tag:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* DB PAGE */
+.db-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.db-stat { background: var(--paper2); border: 1px solid var(--border); padding: 11px 16px; text-align: center; min-width: 90px; }
+.db-stat-n { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500; color: var(--accent2); }
+.db-stat-l { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; align-items: flex-start; justify-content: center; padding-top: 70px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--paper); border-top: 5px solid var(--accent); width: 660px; max-height: 72vh; overflow-y: auto; padding: 30px 34px; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 16px; font-size: 20px; cursor: pointer; color: var(--muted); background: none; border: none; }
+.modal-title { font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 700; margin-bottom: 12px; line-height: 1.3; }
+.modal-meta { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--muted); margin-bottom: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+.modal-body { font-size: 13.5px; line-height: 1.75; color: #222; }
+.modal-link { display: inline-block; margin-top: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent2); text-decoration: underline; word-break: break-all; }
+
+/* STATUS BAR */
+.status-bar { background: var(--ink); color: rgba(232,224,208,0.55); font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 5px 32px; display: flex; gap: 22px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
+.sdot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; display: inline-block; margin-right: 5px; }
+.sdot.warn { background: var(--gold); }
+.sdot.err { background: var(--accent); }
+
+/* ALERT */
+.alert { padding: 11px 14px; font-size: 12.5px; margin-bottom: 14px; border-left: 4px solid; }
+.alert.info { background: #e8f4fd; border-color: var(--accent2); color: var(--accent2); }
+.alert.warn { background: #fef9e7; border-color: var(--gold); color: #7a6000; }
+.alert.err { background: #fdecea; border-color: var(--accent); color: var(--accent); }
+
+/* SUMMARY CARD */
+.summary-card { background: var(--accent2); color: #e8e0d0; padding: 18px 22px; margin-bottom: 22px; border-left: 4px solid var(--gold); }
+.summary-card .slabel { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; width: auto; }
+.summary-card .stext { font-size: 14px; line-height: 1.65; color: #e8e0d0; }
+
+/* NL PASTE MODAL */
+#nlModal .modal { border-top-color: var(--accent2); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="title">Morning Brief</div>
+    <div class="subtitle">Personal News Agent</div>
+  </div>
+  <div class="sidebar-date" id="sidebarDate">—</div>
+  <div class="sidebar-nav">
+    <div class="nav-section-label">Daily Digest</div>
+    <div class="nav-item active" onclick="showPage('digest')"><span class="icon">📰</span> Today's Brief</div>
+    <div class="nav-item" onclick="showPage('stocks')"><span class="icon">📈</span> My Stocks</div>
+    <div class="nav-section-label">Categories</div>
+    <div class="nav-item" onclick="showPage('tech')"><span class="icon">💻</span> Technology</div>
+    <div class="nav-item" onclick="showPage('bio')"><span class="icon">🧬</span> Biomedical</div>
+    <div class="nav-item" onclick="showPage('markets')"><span class="icon">🏦</span> Markets</div>
+    <div class="nav-item" onclick="showPage('geo')"><span class="icon">🌍</span> General & Geopolitics</div>
+    <div class="nav-item" onclick="showPage('sourcenews')"><span class="icon">🌐</span> 來源新聞</div>
+    <div class="nav-section-label">Newsletters</div>
+    <div class="nav-item" onclick="showPage('newsletters')"><span class="icon">✉️</span> Subscriptions</div>
+    <div class="nav-item" onclick="showPage('sources')"><span class="icon">🌐</span> 新聞來源</div>
+    <div class="nav-section-label">Data & Settings</div>
+    <div class="nav-item" onclick="showPage('database')"><span class="icon">🗄️</span> Database</div>
+    <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span> Settings</div>
+  </div>
+  <div class="sidebar-footer">v2.0 · Gemini + Google Search</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="page-title" id="pageTitle">Today's Brief</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="topbar-keys">
+        <span class="key-badge missing" id="geminiStatus" onclick="showPage('settings')" title="Click to set key in Settings">Gemini: not set</span>
+        <span class="key-badge ok" id="newsStatus">Search: ✓ Google</span>
+      </div>
+      <button class="fetch-btn" id="fetchBtn" onclick="fetchAll()">⚡ Fetch Brief</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- PAGE: DIGEST -->
+    <div class="page visible" id="page-digest">
+      <div class="ticker-strip"><div class="ticker-inner" id="tickerEl">
+        <!-- filled by JS -->
+      </div></div>
+
+      <div class="digest-header">
+        <div class="digest-title">Good Morning ☕</div>
+        <div class="digest-meta" id="digestMeta">Enter your API keys above and click Fetch Brief</div>
+      </div>
+
+      <div id="summaryCard" style="display:none;" class="summary-card">
+        <div class="slabel">⚡ AI Executive Summary</div>
+        <div class="stext" id="summaryText"></div>
+      </div>
+
+      <div class="news-grid" id="digestGrid">
+        <div style="grid-column:1/-1;" class="loading-wrap">
+          <div class="empty-icon">🌅</div>
+          <p style="line-height:1.8;">
+            <strong>Real news. Real sources.</strong><br>
+            Gemini搜尋即時新聞，涵蓋科技、生醫、市場、地緣政治，<br>以及你的自訂來源與股票持倉。<br><br>
+            只需一個免費 API Key：<br>
+            <span style="font-family:'IBM Plex Mono',monospace;">Gemini key</span> → <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent2);">aistudio.google.com</a> → Sign in → Get API key
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: STOCKS -->
+    <div class="page" id="page-stocks">
+      <div class="digest-header">
+        <div class="digest-title">My Portfolio</div>
+        <div class="digest-meta">US · EU · Taiwan Holdings</div>
+      </div>
+      <div class="stocks-grid" id="stocksGrid">
+        <div class="loading-wrap" style="grid-column:1/-1;"><div class="empty-icon">📊</div><p>Fetch the morning brief to load stock news.</p></div>
+      </div>
+    </div>
+
+    <!-- PAGE: TECH -->
+    <div class="page" id="page-tech">
+      <div class="digest-header"><div class="digest-title">Technology</div><div class="digest-meta">AI · Semiconductors · Software · Hardware</div></div>
+      <div id="techFeed"><div class="loading-wrap"><div class="empty-icon">💻</div><p>Fetch to load.</p></div></div>
+    </div>
+
+    <!-- PAGE: BIO -->
+    <div class="page" id="page-bio">
+      <div class="digest-header"><div class="digest-title">Biomedical</div><div class="digest-meta">Clinical Trials · Drug Approvals · Health Tech</div></div>
+      <div id="bioFeed"><div class="loading-wrap"><div class="empty-icon">🧬</div><p>Fetch to load.</p></div></div>
+    </div>
+
+    <!-- PAGE: MARKETS -->
+    <div class="page" id="page-markets">
+      <div class="digest-header"><div class="digest-title">Markets</div><div class="digest-meta">Equities · Macro · Fed · Earnings</div></div>
+      <div id="marketsFeed"><div class="loading-wrap"><div class="empty-icon">🏦</div><p>Fetch to load.</p></div></div>
+    </div>
+
+
+    <!-- PAGE: GEO -->
+    <div class="page" id="page-geo">
+      <div class="digest-header"><div class="digest-title">General & Geopolitics</div><div class="digest-meta">World · Politics · Trade · Macro Trends</div></div>
+      <div id="geoFeed"><div class="loading-wrap"><div class="empty-icon">🌍</div><p>Fetch to load.</p></div></div>
+    </div>
+
+    <!-- PAGE: SOURCE NEWS -->
+    <div class="page" id="page-sourcenews">
+      <div class="digest-header"><div class="digest-title">來源新聞</div><div class="digest-meta" id="srcNewsCount">—</div></div>
+      <div id="srcNewsFeed"></div>
+    </div>
+
+    <!-- PAGE: NEWSLETTERS -->
+    <div class="page" id="page-newsletters">
+      <div class="digest-header">
+        <div class="digest-title">Newsletters</div>
+        <div class="digest-meta" id="nlCount">11 subscriptions</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+        <div class="alert info" style="margin-bottom:0;flex:1;">⚡ Click <strong>Fetch Latest</strong> on any card — Gemini will search and summarize the newest issue automatically. Or use <strong>Paste</strong> to add manually.</div>
+        <button id="fetchAllNlBtn" class="fetch-btn" onclick="fetchAllNewsletters()" style="white-space:nowrap;">⚡ Fetch All Newsletters</button>
+      </div>
+      <div class="nl-grid" id="nlGrid"></div>
+      <div class="settings-box" style="margin-top:26px;">
+        <div class="settings-title">Add Newsletter</div>
+        <div class="srow">
+          <span class="slabel">Name</span>
+          <input class="sinput" id="newNlName" placeholder="e.g. Stratechery" />
+        </div>
+        <div class="srow">
+          <span class="slabel">Language</span>
+          <select class="sinput" id="newNlLang" style="max-width:140px;"><option value="EN">English</option><option value="繁中">繁中</option><option value="EN/繁中">Bilingual</option></select>
+        </div>
+        <button class="btn-sec" onclick="addNewsletter()">+ Add</button>
+      </div>
+    </div>
+
+    <!-- PAGE: DATABASE -->
+    <div class="page" id="page-database">
+      <div class="digest-header"><div class="digest-title">Database</div><div class="digest-meta">JSON · Export · Import</div></div>
+      <div class="db-stats">
+        <div class="db-stat"><div class="db-stat-n" id="stat-art">0</div><div class="db-stat-l">Articles</div></div>
+        <div class="db-stat"><div class="db-stat-n" id="stat-sess">0</div><div class="db-stat-l">Sessions</div></div>
+        <div class="db-stat"><div class="db-stat-n" id="stat-nl">0</div><div class="db-stat-l">Newsletters</div></div>
+        <div class="db-stat"><div class="db-stat-n" id="stat-stocks">0</div><div class="db-stat-l">Stocks</div></div>
+      </div>
+      <div class="settings-box">
+        <div class="settings-title">Export</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px;">Download your full database as structured JSON for your own applications.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn-sec" onclick="exportDB('full')">⬇ Full DB</button>
+          <button class="btn-sec" onclick="exportDB('today')">⬇ Today Only</button>
+          <button class="btn-sec" onclick="exportDB('stocks')">⬇ Stock News</button>
+          <button class="btn-sec" onclick="exportDB('nl')">⬇ Newsletters</button>
+          <button class="btn-sec" onclick="copyDB()">📋 Copy JSON</button>
+        </div>
+      </div>
+      <div class="settings-box">
+        <div class="settings-title">JSON Preview</div>
+        <textarea id="dbPreview" style="width:100%;height:300px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:12px;background:var(--ink);color:#7affb2;border:none;resize:vertical;" readonly></textarea>
+      </div>
+      <div class="settings-box">
+        <div class="settings-title">Import / Reset</div>
+        <input type="file" id="importFile" accept=".json" onchange="importDB(event)" style="font-size:12.5px;margin-bottom:12px;display:block;" />
+        <button class="btn-danger" onclick="clearDB()">🗑 Clear All Data</button>
+      </div>
+    </div>
+
+    <!-- PAGE: SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="digest-header"><div class="digest-title">Settings</div><div class="digest-meta">API Keys · Tickers · Preferences</div></div>
+
+      <div class="settings-box" style="border-top:4px solid var(--accent);">
+        <div class="settings-title">🔑 API Keys — Set These First</div>
+        <div class="alert info" style="margin-bottom:16px;">🔐 Keys are saved in your browser's localStorage only. Never sent anywhere except the respective APIs. Both keys are <strong>free</strong>.</div>
+
+        <div class="srow">
+          <span class="slabel">Gemini API Key</span>
+          <input class="sinput" type="password" id="geminiKeySave" placeholder="AIza..." />
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-bottom:14px;margin-left:182px;">
+          Get free key: <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent2);">aistudio.google.com</a> → Sign in → <strong>Get API key</strong>
+        </p>
+
+        <div style="font-size:12.5px;color:#155724;background:#d4edda;padding:10px 14px;border-left:3px solid #28a745;margin-bottom:16px;">
+          ✅ <strong>No second API key needed.</strong> Live news comes from Gemini's built-in Google Search grounding — your Gemini key is all you need.
+        </div>
+
+        <button class="btn-sec" onclick="saveKeys()" style="background:var(--accent);color:#fff;border-color:var(--accent);">💾 Save Keys & Start</button>
+        <div id="keySaveMsg" style="display:inline-block;margin-left:12px;font-size:12.5px;color:var(--success);"></div>
+      </div>
+
+      <div class="settings-box">
+        <div class="settings-title">Stock Watchlist</div>
+        <div class="tag-list" id="tickerTags"></div>
+        <div class="srow" style="margin-top:13px;">
+          <input class="sinput" id="newTicker" placeholder="Add ticker e.g. GOOGL, 0050.TW" style="max-width:240px;" onkeydown="if(event.key==='Enter')addTicker()" />
+          <button class="btn-sec" onclick="addTicker()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="settings-box">
+        <div class="settings-title">News Sources</div>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Headlines fetched from GNews — Live news is fetched via <strong>Gemini's Google Search grounding</strong> — real headlines from Reuters, Bloomberg, TechCrunch, CNBC, BBC, FierceBiotech and more. No extra API key needed.</p>
+        <div class="srow">
+          <span class="slabel">Items per category</span>
+          <select class="sinput" id="newsPerCat" style="max-width:90px;"><option>3</option><option selected>5</option><option>8</option><option>10</option></select>
+        </div>
+        <button class="btn-sec" onclick="savePrefs()">Save</button>
+      </div>
+    </div>
+
+
+    <!-- PAGE: SOURCES -->
+    <div class="page" id="page-sources">
+      <div class="digest-header">
+        <div class="digest-title">自訂新聞來源</div>
+        <div class="digest-meta" id="sourcesCount">0 個來源</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+        <div class="alert info" style="margin-bottom:0;flex:1;">🌐 新增任何網站URL，Gemini會自動抓取最新內容並摘要。支援新聞網站、部落格、媒體等。</div>
+        <button class="fetch-btn" onclick="fetchAllSources()">⚡ 全部更新</button>
+      </div>
+      <div class="settings-box" style="margin-bottom:22px;">
+        <div class="settings-title">新增來源</div>
+        <div class="srow">
+          <span class="slabel">名稱</span>
+          <input class="sinput" id="newSrcName" placeholder="e.g. TechCrunch, 科技新報..." style="max-width:220px;" />
+        </div>
+        <div class="srow">
+          <span class="slabel">網址 (URL)</span>
+          <input class="sinput" id="newSrcUrl" placeholder="https://..." />
+        </div>
+        <div class="srow">
+          <span class="slabel">類別</span>
+          <select class="sinput" id="newSrcCat" style="max-width:160px;">
+            <option value="tech">科技</option>
+            <option value="bio">生醫</option>
+            <option value="markets">市場</option>
+            <option value="general">綜合</option>
+            <option value="tw">台灣媒體</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slabel">摘要語言</span>
+          <select class="sinput" id="newSrcLang" style="max-width:140px;">
+            <option value="EN">English</option>
+            <option value="繁中">繁中</option>
+            <option value="auto">跟原文</option>
+          </select>
+        </div>
+        <button class="btn-sec" onclick="addSource()">+ 新增</button>
+      </div>
+      <div id="sourcesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
+    </div>
+
+  </div><!-- /content -->
+
+  <div class="status-bar">
+    <span><span class="sdot" id="sdotGemini" style="background:#aaa;"></span><span id="sGemini">Gemini: —</span></span>
+    <span><span class="sdot ok" style="background:#4caf50;"></span><span>Search: Google</span></span>
+    <span><span class="sdot warn"></span><span id="sDB">DB: 0 articles</span></span>
+    <span id="sLast">Last fetch: never</span>
+  </div>
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- ARTICLE MODAL -->
+<div class="modal-overlay" id="articleModal" onclick="closeMod('articleModal',event)">
+  <div class="modal" style="width:720px;max-width:95vw;">
+    <button class="modal-close" onclick="closeMod('articleModal')">&#x2715;</button>
+    <div class="modal-meta" id="artMeta"></div>
+    <div class="modal-title" id="artTitle"></div>
+    <div class="modal-body" id="artBody"></div>
+    <div id="artReadBtn" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);"></div>
+  </div>
+</div>
+
+<!-- NEWSLETTER MODAL (paste + read) -->
+<div class="modal-overlay" id="nlModal" onclick="closeMod('nlModal',event)">
+  <div class="modal" style="border-top-color:var(--accent2);width:700px;max-width:95vw;">
+    <button class="modal-close" onclick="closeMod('nlModal');resetNlModal();">&#x2715;</button>
+    <div class="modal-title" id="nlModalTitle">Paste Newsletter Issue</div>
+    <div id="nlPasteLabel" style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Paste the full text. Gemini will summarize in the original language and save to your database.</div>
+    <textarea id="nlPaste" style="width:100%;height:250px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;padding:12px;background:var(--paper2);border:1px solid var(--border);resize:vertical;" placeholder="Paste newsletter content here..."></textarea>
+    <div id="nlProcessBtns" style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <button class="fetch-btn" onclick="processNl()">&#x26A1; Summarize &amp; Save</button>
+      <button class="btn-sec" onclick="closeMod('nlModal');resetNlModal();">Cancel</button>
+      <span id="nlStatus" style="font-size:12px;color:var(--muted);"></span>
+    </div>
+    <div id="nlReadContent" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+const DEFAULT_TICKERS = [
+  {sym:'AAPL',name:'Apple',mkt:'US'},{sym:'BRK-B',name:'Berkshire B',mkt:'US'},
+  {sym:'DIS',name:'Disney',mkt:'US'},{sym:'GE',name:'GE Aerospace',mkt:'US'},
+  {sym:'BAH',name:'Booz Allen',mkt:'US'},{sym:'HIMS',name:'Hims & Hers',mkt:'US'},
+  {sym:'MRVL',name:'Marvell Tech',mkt:'US'},{sym:'NET',name:'Cloudflare',mkt:'US'},
+  {sym:'NNOX',name:'Nano-X Imaging',mkt:'US'},{sym:'NU',name:'Nu Holdings',mkt:'US'},
+  {sym:'NVDA',name:'NVIDIA',mkt:'US'},{sym:'ONDS',name:'Ondas Holdings',mkt:'US'},
+  {sym:'OSCR',name:'Oscar Health',mkt:'US'},{sym:'S',name:'SentinelOne',mkt:'US'},
+  {sym:'SOFI',name:'SoFi Tech',mkt:'US'},{sym:'TSLA',name:'Tesla',mkt:'US'},
+  {sym:'TSM',name:'TSMC ADR',mkt:'US'},{sym:'VRNS',name:'Varonis',mkt:'US'},
+  {sym:'VTI',name:'Vanguard Total',mkt:'US'},{sym:'ASML',name:'ASML Holding',mkt:'EU'}
+];
+
+const DEFAULT_NL = [
+  {id:'howard-marks',name:'The Memo',author:'Howard Marks',lang:'EN'},
+  {id:'schwab',name:'Schwab Market Update',author:'Schwab',lang:'EN'},
+  {id:'beckers',name:"Becker's Healthcare",author:"Becker's",lang:'EN'},
+  {id:'m-view',name:'M觀點',author:'M觀點',lang:'繁中'},
+  {id:'talking-ht',name:'Talking Healthtech',author:'Talking HT',lang:'EN'},
+  {id:'vk-tech',name:'VK科技閱讀時間',author:'VK',lang:'繁中'},
+  {id:'tech-wave',name:'科技浪',author:'科技浪',lang:'繁中'},
+  {id:'tldr',name:'TLDR',author:'TLDR',lang:'EN'},
+  {id:'man-bao',name:'曼報',author:'曼報',lang:'繁中'},
+  {id:'zebra',name:'斑馬通信',author:'斑馬通信',lang:'繁中'},
+  {id:'stratechery',name:'Stratechery',author:'Ben Thompson',lang:'EN'}
+];
+
+const DEFAULT_SOURCES = [
+  {id:'technews-tw',  name:'科技新報',      url:'https://technews.tw',           cat:'tech',    lang:'繁中'},
+  {id:'ithome',       name:'iThome',        url:'https://www.ithome.com.tw',      cat:'tech',    lang:'繁中'},
+  {id:'techcrunch',   name:'TechCrunch',    url:'https://techcrunch.com',         cat:'tech',    lang:'EN'},
+  {id:'stat-news',    name:'STAT News',     url:'https://www.statnews.com',       cat:'bio',     lang:'EN'},
+  {id:'fiercebiotech',name:'FierceBiotech', url:'https://www.fiercebiotech.com',  cat:'bio',     lang:'EN'},
+  {id:'bloomberg',    name:'Bloomberg',     url:'https://www.bloomberg.com',      cat:'markets', lang:'EN'},
+];
+
+let DB = {
+  meta:{version:'2.0',created:new Date().toISOString(),lastUpdated:null},
+  sessions:[],articles:[],stockNews:{},newsletters:{},
+  tickers:[...DEFAULT_TICKERS],
+  nlSources:[...DEFAULT_NL],
+  sources:[...DEFAULT_SOURCES],
+  sourceNews:{}
+};
+
+let currentNlId = null;
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+function init(){
+  const now = new Date();
+  document.getElementById('sidebarDate').textContent = now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // Load DB
+  try{
+    const s = localStorage.getItem('mbDB_v2');
+    if(s){ const p=JSON.parse(s); DB={...DB,...p}; }
+  }catch(e){}
+
+  // Load keys
+  const gk = localStorage.getItem('geminiKey');
+  const nk = localStorage.getItem('newsKey');
+  if(gk){ document.getElementById('geminiKeySave').value=gk; setStatus('gemini',true); }
+  if(nk){ document.getElementById('newsKeySave').value=nk; setStatus('news',true); }
+
+  buildTicker();
+  renderNl();
+  renderSources();
+  renderSourceNewsFeed();
+  renderTickerTags();
+  updateStats();
+  // Merge default sources if none saved
+  if(!DB.sources||DB.sources.length===0) DB.sources=[...DEFAULT_SOURCES];
+
+  // If no keys set, nudge user to settings
+  if(!gk || !nk){
+    document.getElementById('digestGrid').innerHTML = `
+      <div style="grid-column:1/-1;" class="loading-wrap">
+        <div class="empty-icon">🔑</div>
+        <p style="line-height:2;">
+          <strong>First-time setup — 2 steps:</strong><br>
+          1. Go to <strong>Settings</strong> (bottom of sidebar)<br>
+          2. Paste your two free API keys and click <strong>Save Keys & Start</strong><br><br>
+          <span style="font-size:12px;color:var(--muted);">
+            Gemini key → <a href="https://aistudio.google.com" target="_blank" style="color:var(--accent2);">aistudio.google.com</a><br>
+            NewsAPI key → <a href="https://gnews.io" target="_blank" style="color:var(--accent2);">gnews.io</a>
+          </span>
+        </p>
+        <button class="fetch-btn" style="margin:16px auto 0;display:inline-flex;" onclick="showPage('settings')">⚙️ Go to Settings →</button>
+      </div>`;
+  }
+}
+
+function setStatus(which, ok){
+  const dot = document.getElementById('sdot'+(which==='gemini'?'Gemini':'News'));
+  const lbl = document.getElementById('s'+(which==='gemini'?'Gemini':'News'));
+  const badge = document.getElementById(which==='gemini'?'geminiStatus':null);
+  dot.style.background = ok ? '#4caf50' : '#c0392b';
+  lbl.textContent = (which==='gemini'?'Gemini':'GNews') + ': ' + (ok?'ready':'—');
+  if(badge){
+    badge.textContent = (which==='gemini'?'Gemini':'GNews') + ': ' + (ok?'✓ ready':'not set');
+    badge.className = 'key-badge ' + (ok?'ok':'missing');
+  }
+}
+
+function buildTicker(){
+  const items = DB.tickers.map(t=>
+    `<span class="ticker-item"><span class="tsym">${t.sym}</span><span>—</span></span>`
+  );
+  document.getElementById('tickerEl').innerHTML = items.join('');
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+const TITLES = {digest:"Today's Brief",stocks:'My Portfolio',tech:'Technology',bio:'Biomedical',markets:'Markets',geo:'General & Geopolitics',sourcenews:'來源新聞',newsletters:'Newsletters',sources:'自訂新聞來源',database:'Database',settings:'Settings'};
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('visible'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('visible');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if((n.getAttribute('onclick')||'').includes("'"+id+"'")) n.classList.add('active');
+  });
+  document.getElementById('pageTitle').textContent = TITLES[id]||id;
+  if(id==='database') updateDBPreview();
+}
+
+// ══════════════════════════════════════════
+// FETCH ALL — NewsAPI + Gemini
+// ══════════════════════════════════════════
+async function fetchAll(){
+  const gKey = localStorage.getItem('geminiKey')||'';
+  if(!gKey){ alert('Please go to Settings and enter your Gemini API key first.'); showPage('settings'); return; }
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled=true; btn.textContent='⏳ Fetching…';
+
+  setLoading('digestGrid','grid'); setLoadingDiv('techFeed'); setLoadingDiv('bioFeed'); setLoadingDiv('marketsFeed');
+
+  try {
+    // ── Gemini with Google Search grounding (live news, no extra API needed) ──
+    const newsCount = parseInt(document.getElementById('newsPerCat')?.value||'5');
+    const result = await fetchWithGeminiSearch(gKey, newsCount);
+
+    // ── Render ──
+    renderDigest(result, {});
+    renderCategoryPage('techFeed', result.tech||[], 'tech');
+    renderCategoryPage('bioFeed', result.biomedical||[], 'bio');
+    renderCategoryPage('marketsFeed', result.markets||[], 'market');
+    renderCategoryPage('geoFeed', result.geo||[], 'geo');
+    renderSourceNewsFeed();
+    renderStocksPage(result.stockNews||{}, []);
+
+    // Save
+    saveSession(result, {});
+    const now = new Date();
+    const total = (result.tech||[]).length + (result.biomedical||[]).length + (result.markets||[]).length + (result.geo||[]).length;
+    document.getElementById('digestMeta').textContent =
+      `${now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${total} stories · via Gemini Search`;
+    document.getElementById('sLast').textContent = 'Last fetch: '+now.toLocaleTimeString();
+
+  } catch(e){
+    showErr('digestGrid', e.message);
+    console.error(e);
+  }
+  btn.disabled=false; btn.textContent='⚡ Fetch Brief';
+}
+
+// ══════════════════════════════════════════
+// GEMINI + GOOGLE SEARCH GROUNDING
+// (fetches real live news, no extra API key needed)
+// ══════════════════════════════════════════
+async function fetchWithGeminiSearch(key, count){
+  const tickerList = DB.tickers.map(t=>t.sym).join(', ');
+  const today = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // Inject already-fetched custom source articles into prompt
+  const srcLines = [];
+  (DB.sources||[]).forEach(s=>{
+    const latest = (DB.sourceNews[s.id]||[])[0];
+    if(!latest||!latest.articles?.length) return;
+    latest.articles.slice(0,3).forEach(a=>{
+      srcLines.push(`- [${s.name}] ${a.headline}`);
+    });
+  });
+  const srcSection = srcLines.length
+    ? `\n5. Custom Sources (incorporate these fetched articles):\n${srcLines.join('\n')}\n`
+    : '';
+
+  const prompt = `Today is ${today}. Search for today's real news and return a morning brief.
+
+Search for and include REAL news from today across these areas:
+1. Technology: AI, semiconductors, NVIDIA, Apple, software, chips
+2. Biomedical: FDA approvals, biotech, clinical trials, healthcare
+3. Markets: stock market, Fed, earnings, Wall Street, economy
+4. General & Geopolitics: world news, US-China relations, trade war, elections, international politics, macro geopolitical trends
+${srcSection}Stocks: news about these tickers: ${tickerList}
+
+Return ONLY valid JSON (no markdown):
+{
+  "summary": "3-sentence executive summary covering the most important news today across all categories",
+  "tech": [
+    {"headline":"real headline","summary":"2-3 sentence analysis","source":"publication name","relevance":"why this matters","tags":["AI","chips"],"time":"Today","url":"https://..."}
+  ],
+  "biomedical": [ same structure, ${count} real items ],
+  "markets": [ same structure, ${count} real items ],
+  "geo": [
+    {"headline":"real geopolitics/world news","summary":"2-3 sentence analysis","source":"publication","relevance":"why this matters","tags":["geopolitics"],"time":"Today","url":"https://"}
+  ],
+  "stockNews": {
+    "NVDA": [{"headline":"...","summary":"...","source":"...","sentiment":"bullish/bearish/neutral","url":"https://..."}],
+    "AAPL": [...], "TSM": [...], "ASML": [...], "MRVL": [...], "NET": [...],
+    "TSLA": [...], "HIMS": [...], "NNOX": [...], "NU": [...], "OSCR": [...],
+    "S": [...], "SOFI": [...], "VRNS": [...], "ONDS": [...], "BRK-B": [...],
+    "DIS": [...], "GE": [...], "BAH": [...], "VTI": []
+  }
+}
+Include ${count} items each for tech, biomedical, markets, geo. For each stock 1-2 items. Use real URLs where possible.`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0.2 }
+      })
+    }
+  );
+
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error('Gemini error: '+(err.error?.message||res.status));
+  }
+
+  const data = await res.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  // Find the text part (search grounding may add other parts)
+  const textPart = parts.find(p => p.text)?.text || '{}';
+  const clean = textPart.replace(/```json|```/g,'').trim();
+
+  // Extract JSON — find first { to last }
+  const jsonStart = clean.indexOf('{');
+  const jsonEnd = clean.lastIndexOf('}');
+  if(jsonStart === -1) throw new Error('Gemini returned no JSON. Try again.');
+  const jsonStr = clean.slice(jsonStart, jsonEnd+1);
+  return JSON.parse(jsonStr);
+}
+
+// ══════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════
+function renderDigest(result, raw){
+  if(result.summary){
+    document.getElementById('summaryCard').style.display='block';
+    document.getElementById('summaryText').textContent = result.summary;
+  }
+  const grid = document.getElementById('digestGrid');
+  grid.innerHTML = `
+    ${makeCard('','💻 Technology', result.tech||[], 3)}
+    ${makeCard('bio','🧬 Biomedical', result.biomedical||[], 3)}
+    ${makeCard('market','🏦 Markets', result.markets||[], 3)}
+    ${makeCard('geo','🌍 General & Geopolitics', result.geo||[], 3)}
+    ${makeStockHighlights(result.stockNews||{})}
+    ${makeSourceHighlights()}
+  `;
+}
+
+function makeCard(type, label, items, limit){
+  const shown = items.slice(0,limit);
+  return `
+    <div class="news-card ${type}">
+      <div class="card-label"><span>${label}</span></div>
+      ${shown.map(i=>`
+        <div class="news-item" onclick='openArticle(${JSON.stringify(i).replace(/'/g,"&#39;")})'>
+          <div class="nhead">${escHtml(i.headline)}</div>
+          <div class="nsummary">${escHtml(i.summary||i.description||'')}</div>
+          <div class="nmeta">
+            <span class="nsource">${escHtml(i.source||'')}</span>
+            <span class="ntime">${i.time||formatDate(i.publishedAt)||'Today'}</span>
+            ${(i.tags||[]).map(t=>`<span class="ntag">${escHtml(t)}</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function makeStockHighlights(stockNews){
+  const items = [];
+  DB.tickers.slice(0,8).forEach(t=>{
+    const arr = stockNews[t.sym];
+    if(arr&&arr.length) items.push({sym:t.sym,name:t.name,item:arr[0]});
+  });
+  if(!items.length) return '';
+  return `
+    <div class="news-card stock" style="grid-column:1/-1;">
+      <div class="card-label"><span>📊 Stock Highlights</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;">
+        ${items.map(h=>`
+          <div class="news-item" onclick='openArticle(${JSON.stringify(h.item).replace(/'/g,"&#39;")})'>
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:#4a1259;">${h.sym}</span>
+              <span style="font-size:10.5px;color:var(--muted);">${h.name}</span>
+              ${h.item.sentiment?`<span class="sentiment ${h.item.sentiment}">${h.item.sentiment}</span>`:''}
+            </div>
+            <div class="nhead">${escHtml(h.item.headline)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function makeSourceHighlights(){
+  const sources = DB.sources||[];
+  const cards = [];
+  sources.forEach(s=>{
+    const latest = (DB.sourceNews[s.id]||[])[0];
+    if(!latest||!latest.articles?.length) return;
+    latest.articles.slice(0,2).forEach(a=>{
+      cards.push({...a, sourceName: s.name, sourceUrl: s.url});
+    });
+  });
+  if(!cards.length) return '';
+  return `
+    <div class="news-card sources" style="grid-column:1/-1;">
+      <div class="card-label"><span>🌐 來源新聞精選</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;">
+        ${cards.slice(0,6).map(a=>`
+          <div class="news-item" onclick='openArticle(${JSON.stringify(a).replace(/'/g,"&#39;")})'>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#00695c;margin-bottom:3px;">${escHtml(a.sourceName||'')}</div>
+            <div class="nhead">${escHtml(a.headline||'')}</div>
+            <div class="nsummary">${escHtml((a.summary||'').substring(0,100))}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderSourceNewsFeed(){
+  const feed = document.getElementById('srcNewsFeed');
+  if(!feed) return;
+  const sources = DB.sources||[];
+  document.getElementById('srcNewsCount').textContent = sources.length + ' 個來源';
+  if(!sources.length){
+    feed.innerHTML='<div class="loading-wrap"><div class="empty-icon">🌐</div><p>請先在「自訂新聞來源」頁面新增並更新來源。</p></div>';
+    return;
+  }
+  feed.innerHTML='';
+  sources.forEach(s=>{
+    const latest = (DB.sourceNews[s.id]||[])[0];
+    const div = document.createElement('div');
+    div.style.marginBottom='22px';
+    const arts = latest?.articles||[];
+    div.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--border);">
+        <div>
+          <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;">${escHtml(s.name)}</span>
+          <a href="${escHtml(s.url)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent2);margin-left:10px;">${escHtml(s.url)}</a>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${latest?`<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);">更新於 ${latest.fetchedAt?.split('T')[0]||''}</span>`:''}
+          <button class="nl-btn" style="background:var(--accent2);color:#fff;border-color:var(--accent2);" onclick="fetchSource('${s.id}');setTimeout(renderSourceNewsFeed,3000)">⚡ 更新</button>
+        </div>
+      </div>
+      ${arts.length
+        ? `<div class="news-card sources" style="margin:0;">
+            ${arts.map(a=>`
+              <div class="news-item" onclick='openArticle(${JSON.stringify(a).replace(/'/g,"&#39;")})'>
+                <div class="nhead">${escHtml(a.headline||'')}</div>
+                <div class="nsummary">${escHtml(a.summary||'')}</div>
+                <div class="nmeta">
+                  <span class="nsource">${escHtml(s.name)}</span>
+                  <span class="ntime">${a.publishedAt||''}</span>
+                  ${a.url?`<a href="${escHtml(a.url)}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--accent2);">閱讀全文 →</a>`:''}
+                </div>
+              </div>`).join('')}
+           </div>`
+        : `<div style="font-size:12.5px;color:var(--muted);padding:8px 0;">尚未抓取，請點更新。</div>`}`;
+    feed.appendChild(div);
+  });
+}
+
+function renderCategoryPage(containerId, items, type){
+  const el = document.getElementById(containerId);
+  if(!items.length){el.innerHTML='<div class="loading-wrap"><p>No items loaded.</p></div>';return;}
+  el.innerHTML=`<div class="news-card ${type}" style="max-width:820px;">${
+    items.map(i=>`
+      <div class="news-item" onclick='openArticle(${JSON.stringify(i).replace(/'/g,"&#39;")})'>
+        <div class="nhead">${escHtml(i.headline)}</div>
+        <div class="nsummary">${escHtml(i.summary||'')}</div>
+        ${i.relevance?`<div style="font-size:11.5px;color:var(--accent2);margin-top:4px;font-style:italic;">${escHtml(i.relevance)}</div>`:''}
+        <div class="nmeta">
+          <span class="nsource">${escHtml(i.source||'')}</span>
+          <span class="ntime">${i.time||'Today'}</span>
+          ${(i.tags||[]).slice(0,4).map(t=>`<span class="ntag">${escHtml(t)}</span>`).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function renderStocksPage(stockNews, rawStockArts){
+  const grid = document.getElementById('stocksGrid');
+  grid.innerHTML='';
+  DB.tickers.forEach(t=>{
+    const items = stockNews[t.sym]||[];
+    const div = document.createElement('div');
+    div.className='stock-card';
+    div.innerHTML=`
+      <div class="stock-header">
+        <div>
+          <div class="stock-sym">${t.sym}</div>
+          <div class="stock-name">${t.name} · ${t.mkt}</div>
+        </div>
+        <div class="stock-price">—</div>
+      </div>
+      <div>
+        ${items.length ? items.map(i=>`
+          <div class="news-item" onclick='openArticle(${JSON.stringify(i).replace(/'/g,"&#39;")})'>
+            <div class="nhead" style="font-size:12.5px;">${escHtml(i.headline)}</div>
+            ${i.sentiment?`<span class="sentiment ${i.sentiment}">${i.sentiment}</span>`:''}
+          </div>`).join('')
+        : '<div style="font-size:12px;color:var(--muted);padding:8px 0;">No news today</div>'}
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════
+// NEWSLETTERS
+// ══════════════════════════════════════════
+function renderNl(){
+  const grid = document.getElementById('nlGrid');
+  grid.innerHTML='';
+  document.getElementById('nlCount').textContent = DB.nlSources.length+' subscriptions';
+  DB.nlSources.forEach(nl=>{
+    const saved = (DB.newsletters[nl.id]||[])[0];
+    const div = document.createElement('div');
+    div.className='nl-card';
+    div.id='nl-card-'+nl.id;
+
+    // Key points list
+    const kpHtml = saved && saved.keyPoints?.length
+      ? `<ul style="margin:8px 0 0 0;padding-left:16px;font-size:12px;color:var(--ink);line-height:1.6;">
+          ${saved.keyPoints.slice(0,3).map(k=>`<li>${escHtml(k)}</li>`).join('')}
+         </ul>` : '';
+
+    div.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div class="nl-name">${escHtml(nl.name)}</div>
+        ${saved?`<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);padding-top:3px;">${saved.date||saved.savedAt?.split('T')[0]||''}</span>`:''}
+      </div>
+      <div class="nl-lang">${nl.lang} · ${escHtml(nl.author)}</div>
+      ${saved
+        ? `<div class="nl-excerpt" style="-webkit-line-clamp:3;">${escHtml(saved.summary||'')}</div>${kpHtml}`
+        : `<div class="nl-excerpt">No issues saved yet.</div>`}
+      <div id="nl-status-${nl.id}" style="font-size:11.5px;color:var(--muted);min-height:18px;margin-top:8px;"></div>
+      <div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap;">
+        <button class="nl-btn" style="background:var(--accent2);color:#fff;border-color:var(--accent2);" 
+          onclick="fetchNlLatest('${nl.id}','${escHtml(nl.name)}','${nl.lang}','${escHtml(nl.author)}')">
+          ⚡ Fetch Latest
+        </button>
+        <button class="nl-btn" onclick="openNlModal('${nl.id}','${escHtml(nl.name)}')">📋 Paste</button>
+        ${saved?`<button class="nl-btn" onclick="openNlReadModal('${nl.id}')">📖 Read</button>`:''}
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+function openNlModal(id, name){
+  currentNlId=id;
+  resetNlModal();
+  document.getElementById('nlModalTitle').textContent='Paste: '+name;
+  document.getElementById('nlModal').classList.add('open');
+}
+
+function resetNlModal(){
+  const paste = document.getElementById('nlPaste');
+  const label = document.getElementById('nlPasteLabel');
+  const btns  = document.getElementById('nlProcessBtns');
+  const read  = document.getElementById('nlReadContent');
+  const status= document.getElementById('nlStatus');
+  if(paste)  { paste.style.display='block'; paste.value=''; }
+  if(label)  label.style.display='block';
+  if(btns)   btns.style.display='flex';
+  if(read)   { read.style.display='none'; read.innerHTML=''; }
+  if(status) status.textContent='';
+}
+
+async function processNl(){
+  const text = document.getElementById('nlPaste').value.trim();
+  if(!text){alert('Paste some content first.');return;}
+  const gKey = localStorage.getItem('geminiKey')||'';
+  if(!gKey){alert('Enter your Gemini key in Settings first.');return;}
+
+  const status = document.getElementById('nlStatus');
+  status.textContent='⏳ Summarizing…';
+
+  const nl = DB.nlSources.find(n=>n.id===currentNlId);
+  const lang = nl?.lang||'EN';
+  const langNote = lang==='繁中' ? 'Respond entirely in Traditional Chinese (繁體中文).'
+    : lang==='EN/繁中' ? 'Match the language of each section.'
+    : 'Respond in English.';
+
+  const prompt = `Summarize this newsletter issue. ${langNote}
+Return ONLY valid JSON:
+{"title":"issue title","summary":"3-5 sentence summary","keyPoints":["point1","point2","point3"],"date":"${new Date().toISOString().split('T')[0]}"}
+
+Content:
+${text.substring(0,4000)}`;
+
+  try{
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}})}
+    );
+    const data = await res.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
+    const result = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(!DB.newsletters[currentNlId]) DB.newsletters[currentNlId]=[];
+    DB.newsletters[currentNlId].unshift({...result,savedAt:new Date().toISOString()});
+    saveDB();
+    renderNl();
+    status.textContent='✅ Saved!';
+    setTimeout(()=>document.getElementById('nlModal').classList.remove('open'),1400);
+  }catch(e){
+    status.textContent='❌ Error: '+e.message;
+  }
+}
+
+function addNewsletter(){
+  const name = document.getElementById('newNlName').value.trim();
+  const lang = document.getElementById('newNlLang').value;
+  if(!name){alert('Enter a name.');return;}
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-');
+  if(DB.nlSources.find(n=>n.id===id)){alert('Already exists.');return;}
+  DB.nlSources.push({id,name,author:'',lang});
+  saveDB(); renderNl();
+  document.getElementById('newNlName').value='';
+}
+
+// ══════════════════════════════════════════
+// CUSTOM SOURCES
+// ══════════════════════════════════════════
+const CAT_LABEL = {tech:'💻 科技', bio:'🧬 生醫', markets:'🏦 市場', general:'📰 綜合', tw:'🇹🇼 台灣媒體'};
+const CAT_COLOR = {tech:'var(--accent2)', bio:'var(--success)', markets:'var(--gold)', general:'var(--muted)', tw:'var(--accent)'};
+
+function renderSources(){
+  const grid = document.getElementById('sourcesGrid');
+  if(!grid) return;
+  const sources = DB.sources||[];
+  document.getElementById('sourcesCount').textContent = sources.length + ' 個來源';
+  if(!sources.length){
+    grid.innerHTML = '<div class="loading-wrap"><div class="empty-icon">🌐</div><p>尚未新增任何來源。從上方表單新增第一個！</p></div>';
+    return;
+  }
+  grid.innerHTML = '';
+  sources.forEach(src=>{
+    const saved = (DB.sourceNews[src.id]||[])[0];
+    const card = document.createElement('div');
+    card.className = 'nl-card';
+    card.id = 'src-card-'+src.id;
+    card.style.borderLeftColor = CAT_COLOR[src.cat]||'var(--muted)';
+
+    const kpHtml = saved?.keyPoints?.length
+      ? `<ul style="margin:7px 0 0 0;padding-left:16px;font-size:11.5px;color:var(--ink);line-height:1.6;">
+          ${saved.keyPoints.slice(0,3).map(k=>`<li>${escHtml(k)}</li>`).join('')}
+         </ul>` : '';
+
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px;">
+        <div class="nl-name" style="font-size:14.5px;">${escHtml(src.name)}</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;background:var(--paper2);border:1px solid var(--border);">${CAT_LABEL[src.cat]||src.cat}</span>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--accent2);margin-bottom:6px;">
+        <a href="${escHtml(src.url)}" target="_blank" rel="noopener" style="color:var(--accent2);">${escHtml(src.url)}</a>
+      </div>
+      ${saved
+        ? `<div class="nl-excerpt">${escHtml((saved.summary||'').substring(0,140))}…</div>${kpHtml}
+           <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-top:5px;">${saved.fetchedAt?.split('T')[0]||''} · ${saved.articleCount||0} 篇</div>`
+        : `<div class="nl-excerpt">尚未抓取。點擊更新。</div>`}
+      <div id="src-status-${src.id}" style="font-size:11px;color:var(--muted);min-height:16px;margin-top:7px;"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <button class="nl-btn" style="background:var(--accent2);color:#fff;border-color:var(--accent2);"
+          onclick="fetchSource('${src.id}')">⚡ 更新</button>
+        ${saved ? `<button class="nl-btn" onclick="readSource('${src.id}')">📖 閱讀</button>` : ''}
+        <button class="nl-btn" style="border-color:var(--accent);color:var(--accent);"
+          onclick="removeSource('${src.id}')">✕ 刪除</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+async function fetchSource(id){
+  const gKey = localStorage.getItem('geminiKey')||'';
+  if(!gKey){ alert('請先在設定中輸入 Gemini API Key。'); showPage('settings'); return; }
+  const src = (DB.sources||[]).find(s=>s.id===id);
+  if(!src) return;
+
+  const statusEl = document.getElementById('src-status-'+id);
+  if(statusEl){ statusEl.style.color='var(--muted)'; statusEl.textContent='⏳ 正在抓取…'; }
+
+  const langNote = src.lang==='繁中'
+    ? '請用繁體中文摘要。'
+    : src.lang==='auto'
+    ? '請用與原文相同的語言摘要。'
+    : 'Summarize in English.';
+
+  const today = new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
+  const prompt = `Today is ${today}. Please visit this website and find the latest news articles or posts: ${src.url}
+
+${langNote}
+
+Return ONLY valid JSON:
+{
+  "articles": [
+    {
+      "headline": "article title",
+      "summary": "2-3 sentence summary",
+      "url": "direct article URL if found",
+      "publishedAt": "date string",
+      "category": "${src.cat}"
+    }
+  ],
+  "siteSummary": "1-2 sentence overview of today's main themes on this site",
+  "keyPoints": ["main theme 1", "main theme 2", "main theme 3"]
+}
+Find up to 5 recent articles. Include real URLs if possible.`;
+
+  try{
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+      {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          contents:[{parts:[{text:prompt}]}],
+          tools:[{google_search:{}}],
+          generationConfig:{temperature:0.1}
+        })
+      }
+    );
+    if(!res.ok) throw new Error('Gemini error '+res.status);
+    const data = await res.json();
+    const parts = data.candidates?.[0]?.content?.parts||[];
+    const textPart = parts.find(p=>p.text)?.text||'{}';
+    const clean = textPart.replace(/```json|```/g,'').trim();
+    const jsonStr = clean.slice(clean.indexOf('{'), clean.lastIndexOf('}')+1);
+    const result = JSON.parse(jsonStr);
+
+    if(!DB.sourceNews[id]) DB.sourceNews[id]=[];
+    DB.sourceNews[id].unshift({
+      ...result,
+      summary: result.siteSummary||'',
+      articleCount: (result.articles||[]).length,
+      fetchedAt: new Date().toISOString()
+    });
+    if(DB.sourceNews[id].length>10) DB.sourceNews[id]=DB.sourceNews[id].slice(0,10);
+
+    saveDB();
+    renderSources();
+    const newStatus = document.getElementById('src-status-'+id);
+    if(newStatus){ newStatus.style.color='var(--success)'; newStatus.textContent='✅ 已更新！找到 '+(result.articles||[]).length+' 篇文章'; setTimeout(()=>newStatus.textContent='',3000); }
+  }catch(e){
+    if(statusEl){ statusEl.style.color='var(--accent)'; statusEl.textContent='❌ '+e.message; }
+  }
+}
+
+async function fetchAllSources(){
+  const btn = document.querySelector('[onclick="fetchAllSources()"]');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 更新中…'; }
+  for(const src of (DB.sources||[])){
+    await fetchSource(src.id);
+    await new Promise(r=>setTimeout(r,700));
+  }
+  if(btn){ btn.disabled=false; btn.textContent='⚡ 全部更新'; }
+}
+
+function readSource(id){
+  const src = (DB.sources||[]).find(s=>s.id===id);
+  const saved = (DB.sourceNews[id]||[])[0];
+  if(!saved||!src) return;
+
+  // Reuse article modal
+  document.getElementById('artMeta').textContent = src.name+' · '+(saved.fetchedAt?.split('T')[0]||'');
+  document.getElementById('artTitle').textContent = src.name+' — 最新內容';
+  let body = '';
+  if(saved.summary) body += `<p style="font-size:14px;line-height:1.7;margin-bottom:14px;">${escHtml(saved.summary)}</p>`;
+  if(saved.keyPoints?.length){
+    body += `<div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:7px;">主要主題</div>
+    <ul style="padding-left:18px;font-size:13px;line-height:1.8;margin-bottom:16px;">${saved.keyPoints.map(k=>`<li>${escHtml(k)}</li>`).join('')}</ul>`;
+  }
+  if(saved.articles?.length){
+    body += `<div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin:14px 0 8px;">最新文章</div>`;
+    saved.articles.forEach(a=>{
+      body += `<div style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openArticle(${JSON.stringify(a).replace(/"/g,'&quot;')})">
+        <div style="font-family:'Playfair Display',serif;font-size:13.5px;font-weight:600;margin-bottom:3px;">${escHtml(a.headline||'')}</div>
+        <div style="font-size:12px;color:var(--muted);">${escHtml(a.summary||'')}</div>
+        ${a.url?`<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent2);margin-top:4px;">${escHtml(a.url)}</div>`:''}
+      </div>`;
+    });
+  }
+  document.getElementById('artBody').innerHTML = body;
+  document.getElementById('artReadBtn').innerHTML = `<a href="${escHtml(src.url)}" target="_blank" rel="noopener"
+    style="display:inline-flex;align-items:center;gap:8px;background:var(--accent2);color:#fff;padding:10px 18px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;text-decoration:none;">
+    🔗 前往 ${escHtml(src.name)}</a>`;
+  document.getElementById('articleModal').classList.add('open');
+}
+
+function addSource(){
+  const name = document.getElementById('newSrcName').value.trim();
+  const url  = document.getElementById('newSrcUrl').value.trim();
+  const cat  = document.getElementById('newSrcCat').value;
+  const lang = document.getElementById('newSrcLang').value;
+  if(!name||!url){ alert('請填入名稱和網址。'); return; }
+  if(!url.startsWith('http')){ alert('網址需以 http:// 或 https:// 開頭。'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-')+'-'+Date.now().toString(36);
+  if(!DB.sources) DB.sources=[];
+  DB.sources.push({id,name,url,cat,lang});
+  saveDB();
+  renderSources();
+  document.getElementById('newSrcName').value='';
+  document.getElementById('newSrcUrl').value='';
+}
+
+function removeSource(id){
+  const src = (DB.sources||[]).find(s=>s.id===id);
+  if(!src||!confirm('刪除「'+src.name+'」？')) return;
+  DB.sources = DB.sources.filter(s=>s.id!==id);
+  delete DB.sourceNews[id];
+  saveDB();
+  renderSources();
+}
+
+// ══════════════════════════════════════════
+// FETCH NEWSLETTER via Gemini Search
+// ══════════════════════════════════════════
+async function fetchNlLatest(id, name, lang, author){
+  const gKey = localStorage.getItem('geminiKey')||'';
+  if(!gKey){ alert('Enter your Gemini key in Settings first.'); return; }
+
+  const statusEl = document.getElementById('nl-status-'+id);
+  const cardEl   = document.getElementById('nl-card-'+id);
+  if(statusEl) statusEl.textContent = '⏳ Searching for latest issue…';
+
+  const langNote = lang==='繁中'
+    ? 'Write the summary and key points in Traditional Chinese (繁體中文). Keep the title in its original language.'
+    : lang==='EN/繁中' ? 'Match the language of each section.'
+    : 'Respond in English.';
+
+  const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const prompt = `Today is ${today}. Search for the most recent published issue of the newsletter "${name}" by ${author||name}.
+
+Find the latest issue or article from this newsletter/publication and summarize it.
+${langNote}
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "title": "exact title of the latest issue or article",
+  "date": "publication date (YYYY-MM-DD or as found)",
+  "summary": "4-6 sentence summary of the main content and arguments",
+  "keyPoints": ["key point 1", "key point 2", "key point 3", "key point 4"],
+  "url": "direct URL to the article/issue if found, else empty string"
+}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+      {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          contents: [{parts:[{text: prompt}]}],
+          tools: [{google_search:{}}],
+          generationConfig: {temperature: 0.1}
+        })
+      }
+    );
+    if(!res.ok) throw new Error('Gemini error '+res.status);
+    const data = await res.json();
+    const parts = data.candidates?.[0]?.content?.parts||[];
+    const textPart = parts.find(p=>p.text)?.text||'{}';
+    const clean = textPart.replace(/```json|```/g,'').trim();
+    const jsonStr = clean.slice(clean.indexOf('{'), clean.lastIndexOf('}')+1);
+    const result = JSON.parse(jsonStr);
+
+    if(!DB.newsletters[id]) DB.newsletters[id]=[];
+    DB.newsletters[id].unshift({...result, savedAt: new Date().toISOString()});
+    saveDB();
+    renderNl();
+    // Show success briefly on refreshed card
+    const newStatus = document.getElementById('nl-status-'+id);
+    if(newStatus){ newStatus.style.color='var(--success)'; newStatus.textContent='✅ Fetched & saved!'; setTimeout(()=>newStatus.textContent='',3000); }
+  } catch(e) {
+    if(statusEl){ statusEl.style.color='var(--accent)'; statusEl.textContent='❌ '+e.message; }
+  }
+}
+
+async function fetchAllNewsletters(){
+  const gKey = localStorage.getItem('geminiKey')||'';
+  if(!gKey){ alert('Enter your Gemini key in Settings first.'); return; }
+  const btn = document.getElementById('fetchAllNlBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Fetching all…'; }
+  for(const nl of DB.nlSources){
+    await fetchNlLatest(nl.id, nl.name, nl.lang, nl.author);
+    await new Promise(r=>setTimeout(r,800)); // small delay between calls
+  }
+  if(btn){ btn.disabled=false; btn.textContent='⚡ Fetch All Newsletters'; }
+}
+
+// Read modal for saved newsletter
+function openNlReadModal(id){
+  const nl = DB.nlSources.find(n=>n.id===id);
+  const saved = (DB.newsletters[id]||[])[0];
+  if(!saved) return;
+  document.getElementById('nlModalTitle').textContent = saved.title || nl?.name || 'Newsletter';
+  document.getElementById('nlPaste').style.display='none';
+  document.getElementById('nlPasteLabel').style.display='none';
+  document.getElementById('nlProcessBtns').style.display='none';
+  document.getElementById('nlReadContent').style.display='block';
+  document.getElementById('nlReadContent').innerHTML = `
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;">
+      ${saved.date||''} · ${nl?.lang||''} · ${nl?.author||''}
+    </div>
+    <p style="font-size:14px;line-height:1.75;margin-bottom:16px;">${escHtml(saved.summary||'')}</p>
+    ${saved.keyPoints?.length ? `
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:8px;">Key Points</div>
+      <ul style="padding-left:18px;font-size:13.5px;line-height:1.8;color:var(--ink);">
+        ${saved.keyPoints.map(k=>`<li>${escHtml(k)}</li>`).join('')}
+      </ul>` : ''}
+    ${saved.url ? `<div style="margin-top:16px;"><a href="${escHtml(saved.url)}" target="_blank" rel="noopener"
+      style="display:inline-flex;align-items:center;gap:8px;background:var(--accent2);color:#fff;padding:10px 18px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;text-decoration:none;">
+      🔗 Read Full Issue</a></div>` : ''}
+  `;
+  document.getElementById('nlModal').classList.add('open');
+}
+
+
+// ══════════════════════════════════════════
+// DATABASE
+// ══════════════════════════════════════════
+function saveSession(result, rawNews){
+  const sess={
+    date:new Date().toISOString(),
+    tech:result.tech||[],biomedical:result.biomedical||[],markets:result.markets||[],
+    stockNews:result.stockNews||{},summary:result.summary||'',
+    rawCounts:{tech:(rawNews.tech||[]).length,bio:(rawNews.bio||[]).length,markets:(rawNews.markets||[]).length}
+  };
+  DB.sessions.unshift(sess);
+  if(DB.sessions.length>30) DB.sessions=DB.sessions.slice(0,30);
+  const flat=[
+    ...(result.tech||[]).map(a=>({...a,category:'tech',date:new Date().toISOString()})),
+    ...(result.biomedical||[]).map(a=>({...a,category:'biomedical',date:new Date().toISOString()})),
+    ...(result.markets||[]).map(a=>({...a,category:'markets',date:new Date().toISOString()}))
+  ];
+  DB.articles=[...flat,...DB.articles].slice(0,500);
+  Object.entries(result.stockNews||{}).forEach(([sym,items])=>{
+    if(!DB.stockNews[sym]) DB.stockNews[sym]=[];
+    DB.stockNews[sym]=[...(items||[]).map(i=>({...i,date:new Date().toISOString()})),...DB.stockNews[sym]].slice(0,50);
+  });
+  DB.meta.lastUpdated=new Date().toISOString();
+  saveDB();
+}
+
+function saveDB(){
+  localStorage.setItem('mbDB_v2',JSON.stringify(DB));
+  updateStats();
+  if(document.getElementById('sourcesGrid')) renderSources();
+  if(document.getElementById('srcNewsFeed')) renderSourceNewsFeed();
+}
+
+function updateStats(){
+  document.getElementById('stat-art').textContent=(DB.articles||[]).length;
+  document.getElementById('stat-sess').textContent=(DB.sessions||[]).length;
+  document.getElementById('stat-nl').textContent=Object.keys(DB.newsletters||{}).length;
+  document.getElementById('stat-stocks').textContent=(DB.tickers||[]).length;
+  document.getElementById('sDB').textContent='DB: '+(DB.articles||[]).length+' articles';
+}
+
+function updateDBPreview(){
+  const preview={
+    meta:DB.meta,
+    stats:{articles:(DB.articles||[]).length,sessions:(DB.sessions||[]).length,tickers:(DB.tickers||[]).map(t=>t.sym)},
+    latestSession:(DB.sessions||[])[0]||null,
+    recentArticles:(DB.articles||[]).slice(0,3)
+  };
+  document.getElementById('dbPreview').value=JSON.stringify(preview,null,2);
+}
+
+function exportDB(type){
+  let data,fname;
+  const d=new Date().toISOString().split('T')[0];
+  if(type==='full'){data=DB;fname=`morning-brief-full-${d}.json`;}
+  else if(type==='today'){data=(DB.sessions||[])[0]||{};fname=`morning-brief-today-${d}.json`;}
+  else if(type==='stocks'){data={stockNews:DB.stockNews,tickers:DB.tickers};fname=`morning-brief-stocks-${d}.json`;}
+  else if(type==='nl'){data={newsletters:DB.newsletters,sources:DB.nlSources};fname=`morning-brief-newsletters-${d}.json`;}
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=fname;a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyDB(){
+  navigator.clipboard.writeText(JSON.stringify(DB,null,2));
+  alert('Database copied to clipboard!');
+}
+
+function importDB(e){
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{ const p=JSON.parse(ev.target.result); DB={...DB,...p}; saveDB(); renderNl(); renderTickerTags(); alert('Imported!'); }
+    catch(e){alert('Invalid JSON.');}
+  };
+  r.readAsText(file);
+}
+
+function clearDB(){
+  if(confirm('Clear all saved data?')){
+    DB.sessions=[];DB.articles=[];DB.stockNews={};DB.newsletters={};
+    saveDB();updateDBPreview();renderNl();alert('Cleared.');
+  }
+}
+
+// ══════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════
+function renderTickerTags(){
+  document.getElementById('tickerTags').innerHTML=(DB.tickers||[]).map(t=>
+    `<span class="tag" title="Click to remove" onclick="removeTicker('${t.sym}')">${t.sym} ✕</span>`
+  ).join('');
+}
+
+function addTicker(){
+  const val=document.getElementById('newTicker').value.trim().toUpperCase();
+  if(!val) return;
+  if(DB.tickers.find(t=>t.sym===val)){alert('Already in list.');return;}
+  DB.tickers.push({sym:val,name:val,mkt:val.endsWith('.TW')?'TW':'US'});
+  saveDB();renderTickerTags();buildTicker();
+  document.getElementById('newTicker').value='';
+}
+
+function removeTicker(sym){
+  if(confirm('Remove '+sym+'?')){
+    DB.tickers=DB.tickers.filter(t=>t.sym!==sym);
+    saveDB();renderTickerTags();buildTicker();
+  }
+}
+
+function saveKeys(){
+  const gk=document.getElementById('geminiKeySave').value.trim();
+  if(!gk){ alert('Please enter your Gemini API key.'); return; }
+  localStorage.setItem('geminiKey',gk); setStatus('gemini',true);
+  const msg = document.getElementById('keySaveMsg');
+  msg.textContent = '✅ Key saved! Go to Today\'s Brief and click Fetch Brief.';
+  setTimeout(()=>{ msg.textContent=''; },4000);
+}
+
+function savePrefs(){ alert('Preferences saved.'); }
+
+// ══════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════
+function openArticle(item){
+  document.getElementById('artMeta').textContent = [
+    item.source,
+    item.time || formatDate(item.publishedAt) || 'Today',
+    ...(item.tags||[])
+  ].filter(Boolean).join(' · ');
+
+  document.getElementById('artTitle').textContent = item.headline || '';
+
+  // Build body — show AI summary + full description/content if available
+  let bodyHtml = '';
+
+  if(item.summary){
+    bodyHtml += `
+      <div style="background:var(--paper2);border-left:3px solid var(--accent2);padding:12px 16px;margin-bottom:16px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:6px;">AI Summary</div>
+        <p style="font-size:13.5px;line-height:1.7;">${escHtml(item.summary)}</p>
+      </div>`;
+  }
+
+  if(item.description && item.description !== item.summary){
+    bodyHtml += `
+      <div style="margin-bottom:14px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Article Preview</div>
+        <p style="font-size:14px;line-height:1.75;color:#222;">${escHtml(item.description)}</p>
+      </div>`;
+  }
+
+  if(item.content && item.content !== item.description){
+    // NewsAPI truncates content — show what we have
+    const cleaned = item.content.replace(/\[\+\d+ chars\]$/,'').trim();
+    if(cleaned){
+      bodyHtml += `
+        <div style="margin-bottom:14px;">
+          <p style="font-size:14px;line-height:1.75;color:#222;">${escHtml(cleaned)}</p>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:8px;font-style:italic;">Article continues at source →</p>
+        </div>`;
+    }
+  }
+
+  if(item.relevance){
+    bodyHtml += `<p style="margin-top:12px;padding:11px;background:#fef9e7;border-left:3px solid var(--gold);font-style:italic;font-size:13px;color:#7a6000;">${escHtml(item.relevance)}</p>`;
+  }
+
+  if(item.sentiment){
+    bodyHtml += `<p style="margin-top:12px;"><strong>Sentiment:</strong> <span class="sentiment ${item.sentiment}" style="padding:3px 10px;font-size:12px;">${item.sentiment}</span></p>`;
+  }
+
+  document.getElementById('artBody').innerHTML = bodyHtml;
+
+  // Read full article button
+  const btnEl = document.getElementById('artReadBtn');
+  if(item.url){
+    btnEl.innerHTML = `
+      <a href="${escHtml(item.url)}" target="_blank" rel="noopener"
+         style="display:inline-flex;align-items:center;gap:9px;background:var(--accent2);color:#fff;padding:11px 22px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.4px;transition:background 0.15s;"
+         onmouseover="this.style.background='#0f2540'" onmouseout="this.style.background='var(--accent2)'">
+        🔗 Read Full Article at ${escHtml(item.source||'Source')}
+      </a>
+      <div style="margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);word-break:break-all;">${escHtml(item.url)}</div>`;
+  } else {
+    btnEl.innerHTML = '<span style="font-size:12px;color:var(--muted);font-style:italic;">No source URL available for this item.</span>';
+  }
+
+  document.getElementById('articleModal').classList.add('open');
+}
+
+function closeMod(id, e){
+  if(!e || e.target===document.getElementById(id))
+    document.getElementById(id).classList.remove('open');
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function formatDate(s){ if(!s) return ''; try{ return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){return s;} }
+function setLoading(id, type){
+  document.getElementById(id).innerHTML=`<div style="grid-column:1/-1;" class="loading-wrap"><div class="spinner"></div><div>Fetching live news…</div></div>`;
+}
+function setLoadingDiv(id){
+  document.getElementById(id).innerHTML=`<div class="loading-wrap"><div class="spinner"></div><div>Fetching…</div></div>`;
+}
+function showErr(id, msg){
+  document.getElementById(id).innerHTML=`<div style="grid-column:1/-1;" class="alert err">${escHtml(msg)}</div>`;
+}
+
+init();
+</script>
+</body>
+</html>
