@@ -691,7 +691,7 @@ ${srcSection}Stocks: news about these tickers: ${tickerList}
 
 Return ONLY valid JSON (no markdown):
 {
-  "summary": "3-sentence executive summary covering the most important news today across all categories",
+  "summary": "3-sentence executive summary in the same language as the majority of today's news sources. Do NOT translate — keep the original language of each article.",
   "tech": [
     {"headline":"real headline","summary":"2-3 sentence analysis","source":"publication name","relevance":"why this matters","tags":["AI","chips"],"time":"Today","url":"https://..."}
   ],
@@ -711,7 +711,7 @@ Return ONLY valid JSON (no markdown):
 Include ${count} items each for tech, biomedical, markets, geo. For each stock 1-2 items. Use real URLs where possible.`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -1002,7 +1002,7 @@ ${text.substring(0,4000)}`;
 
   try{
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
       {method:'POST',headers:{'Content-Type':'application/json'},
        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}})}
     );
@@ -1076,6 +1076,8 @@ function renderSources(){
         <button class="nl-btn" style="background:var(--accent2);color:#fff;border-color:var(--accent2);"
           onclick="fetchSource('${src.id}')">⚡ 更新</button>
         ${saved ? `<button class="nl-btn" onclick="readSource('${src.id}')">📖 閱讀</button>` : ''}
+        <button class="nl-btn" style="border-color:var(--gold);color:var(--gold);"
+          onclick="editSource('${src.id}')">✏️ 編輯</button>
         <button class="nl-btn" style="border-color:var(--accent);color:var(--accent);"
           onclick="removeSource('${src.id}')">✕ 刪除</button>
       </div>`;
@@ -1119,20 +1121,24 @@ Return ONLY valid JSON:
 }
 Find up to 5 recent articles. Include real URLs if possible.`;
 
-  try{
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
-      {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          contents:[{parts:[{text:prompt}]}],
-          tools:[{google_search:{}}],
-          generationConfig:{temperature:0.1}
-        })
+  // Retry up to 3 times on 429
+  async function callGemini(prompt, retries=3){
+    for(let i=0;i<retries;i++){
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+        {method:'POST',headers:{'Content-Type':'application/json'},
+         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.1}})}
+      );
+      if(r.status===429){
+        if(i<retries-1){ await new Promise(res=>setTimeout(res,8000*(i+1))); continue; }
+        throw new Error('Quota exceeded — please wait 1 minute and try again.');
       }
-    );
-    if(!res.ok) throw new Error('Gemini error '+res.status);
+      if(!r.ok) throw new Error('Gemini error '+r.status);
+      return r;
+    }
+  }
+  try{
+    const res = await callGemini(prompt);
     const data = await res.json();
     const parts = data.candidates?.[0]?.content?.parts||[];
     const textPart = parts.find(p=>p.text)?.text||'{}';
@@ -1163,7 +1169,7 @@ async function fetchAllSources(){
   if(btn){ btn.disabled=true; btn.textContent='⏳ 更新中…'; }
   for(const src of (DB.sources||[])){
     await fetchSource(src.id);
-    await new Promise(r=>setTimeout(r,700));
+    await new Promise(r=>setTimeout(r,3000)); // 3s delay to avoid rate limit
   }
   if(btn){ btn.disabled=false; btn.textContent='⚡ 全部更新'; }
 }
@@ -1224,6 +1230,33 @@ function removeSource(id){
   renderSources();
 }
 
+function editSource(id){
+  const src = (DB.sources||[]).find(s=>s.id===id);
+  if(!src) return;
+  // Fill edit modal fields
+  document.getElementById('editSrcId').value   = src.id;
+  document.getElementById('editSrcName').value = src.name;
+  document.getElementById('editSrcUrl').value  = src.url;
+  document.getElementById('editSrcCat').value  = src.cat;
+  document.getElementById('editSrcLang').value = src.lang;
+  document.getElementById('srcEditModal').classList.add('open');
+}
+
+function saveEditSource(){
+  const id   = document.getElementById('editSrcId').value;
+  const name = document.getElementById('editSrcName').value.trim();
+  const url  = document.getElementById('editSrcUrl').value.trim();
+  const cat  = document.getElementById('editSrcCat').value;
+  const lang = document.getElementById('editSrcLang').value;
+  if(!name||!url){ alert('名稱和網址不能空白。'); return; }
+  const idx = (DB.sources||[]).findIndex(s=>s.id===id);
+  if(idx===-1) return;
+  DB.sources[idx] = {...DB.sources[idx], name, url, cat, lang};
+  saveDB();
+  renderSources();
+  document.getElementById('srcEditModal').classList.remove('open');
+}
+
 // ══════════════════════════════════════════
 // FETCH NEWSLETTER via Gemini Search
 // ══════════════════════════════════════════
@@ -1256,19 +1289,18 @@ Return ONLY valid JSON (no markdown, no backticks):
 }`;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
-      {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          contents: [{parts:[{text: prompt}]}],
-          tools: [{google_search:{}}],
-          generationConfig: {temperature: 0.1}
-        })
-      }
-    );
-    if(!res.ok) throw new Error('Gemini error '+res.status);
+    // Retry on 429
+    let res;
+    for(let i=0;i<3;i++){
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+        {method:'POST',headers:{'Content-Type':'application/json'},
+         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.1}})}
+      );
+      if(res.status===429 && i<2){ await new Promise(r=>setTimeout(r,8000*(i+1))); continue; }
+      break;
+    }
+    if(!res.ok) throw new Error('Gemini error '+res.status+(res.status===429?' — quota exceeded, wait 1 min':''));
     const data = await res.json();
     const parts = data.candidates?.[0]?.content?.parts||[];
     const textPart = parts.find(p=>p.text)?.text||'{}';
@@ -1295,7 +1327,7 @@ async function fetchAllNewsletters(){
   if(btn){ btn.disabled=true; btn.textContent='⏳ Fetching all…'; }
   for(const nl of DB.nlSources){
     await fetchNlLatest(nl.id, nl.name, nl.lang, nl.author);
-    await new Promise(r=>setTimeout(r,800)); // small delay between calls
+    await new Promise(r=>setTimeout(r,3000)); // 3s delay to avoid rate limit
   }
   if(btn){ btn.disabled=false; btn.textContent='⚡ Fetch All Newsletters'; }
 }
@@ -1542,5 +1574,45 @@ function showErr(id, msg){
 
 init();
 </script>
+
+<!-- SOURCE EDIT MODAL -->
+<div class="modal-overlay" id="srcEditModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="border-top-color:var(--gold);width:520px;max-width:95vw;">
+    <button class="modal-close" onclick="document.getElementById('srcEditModal').classList.remove('open')">&#x2715;</button>
+    <div class="modal-title">✏️ 編輯新聞來源</div>
+    <input type="hidden" id="editSrcId" />
+    <div class="srow" style="margin-top:16px;">
+      <span class="slabel">名稱</span>
+      <input class="sinput" id="editSrcName" placeholder="來源名稱" />
+    </div>
+    <div class="srow">
+      <span class="slabel">網址 (URL)</span>
+      <input class="sinput" id="editSrcUrl" placeholder="https://..." />
+    </div>
+    <div class="srow">
+      <span class="slabel">類別</span>
+      <select class="sinput" id="editSrcCat" style="max-width:160px;">
+        <option value="tech">科技</option>
+        <option value="bio">生醫</option>
+        <option value="markets">市場</option>
+        <option value="general">綜合</option>
+        <option value="tw">台灣媒體</option>
+      </select>
+    </div>
+    <div class="srow">
+      <span class="slabel">摘要語言</span>
+      <select class="sinput" id="editSrcLang" style="max-width:140px;">
+        <option value="EN">English</option>
+        <option value="繁中">繁中</option>
+        <option value="auto">跟原文</option>
+      </select>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px;">
+      <button class="fetch-btn" onclick="saveEditSource()">💾 儲存</button>
+      <button class="btn-sec" onclick="document.getElementById('srcEditModal').classList.remove('open')">取消</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
