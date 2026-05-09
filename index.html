@@ -701,7 +701,6 @@ function updateTickerStrip(prices){
     return `<span class="ticker-item"><span class="tsym">${t.sym}</span> <span>$${p.price.toFixed(2)}</span> <span class="tchg ${dir}">${arrow}${pct}%</span></span>`;
   });
   document.getElementById('tickerEl').innerHTML = items.join('');
-  const priceCount = Object.keys(prices).length;
   const sdot = document.getElementById('sdotFinnhub');
   const slbl = document.getElementById('sFinnhub');
   if(sdot) sdot.style.background = priceCount > 0 ? '#4caf50' : '#aaa';
