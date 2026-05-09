@@ -244,11 +244,6 @@ body { background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans'
         <div class="digest-meta" id="digestMeta">Enter your API keys above and click Fetch Brief</div>
       </div>
 
-      <div id="summaryCard" style="display:none;" class="summary-card">
-        <div class="slabel">⚡ AI Executive Summary</div>
-        <div class="stext" id="summaryText"></div>
-      </div>
-
       <div class="news-grid" id="digestGrid">
         <div style="grid-column:1/-1;" class="loading-wrap">
           <div class="empty-icon">🌅</div>
@@ -432,17 +427,9 @@ body { background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans'
             <option value="bio">生醫</option>
             <option value="markets">市場</option>
             <option value="general">綜合</option>
-            <option value="tw">台灣媒體</option>
-          </select>
+            </select>
         </div>
-        <div class="srow">
-          <span class="slabel">摘要語言</span>
-          <select class="sinput" id="newSrcLang" style="max-width:140px;">
-            <option value="EN">English</option>
-            <option value="繁中">繁中</option>
-            <option value="auto">跟原文</option>
-          </select>
-        </div>
+
         <button class="btn-sec" onclick="addSource()">+ 新增</button>
       </div>
       <div id="sourcesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
@@ -518,12 +505,20 @@ const DEFAULT_NL = [
 ];
 
 const DEFAULT_SOURCES = [
-  {id:'technews-tw',  name:'科技新報',      url:'https://technews.tw',           cat:'tech',    lang:'繁中'},
-  {id:'ithome',       name:'iThome',        url:'https://www.ithome.com.tw',      cat:'tech',    lang:'繁中'},
-  {id:'techcrunch',   name:'TechCrunch',    url:'https://techcrunch.com',         cat:'tech',    lang:'EN'},
-  {id:'stat-news',    name:'STAT News',     url:'https://www.statnews.com',       cat:'bio',     lang:'EN'},
-  {id:'fiercebiotech',name:'FierceBiotech', url:'https://www.fiercebiotech.com',  cat:'bio',     lang:'EN'},
-  {id:'bloomberg',    name:'Bloomberg',     url:'https://www.bloomberg.com',      cat:'markets', lang:'EN'},
+  {id:'technews-tw',  name:'科技新報',      url:'https://technews.tw',            cat:'tech',    lang:'auto'},
+  {id:'ithome',       name:'iThome',        url:'https://www.ithome.com.tw',       cat:'tech',    lang:'auto'},
+  {id:'techcrunch',   name:'TechCrunch',    url:'https://techcrunch.com',          cat:'tech',    lang:'auto'},
+  {id:'stat-news',    name:'STAT News',     url:'https://www.statnews.com',        cat:'bio',     lang:'auto'},
+  {id:'fiercebiotech',name:'FierceBiotech', url:'https://www.fiercebiotech.com',   cat:'bio',     lang:'auto'},
+  {id:'bloomberg',    name:'Bloomberg',     url:'https://www.bloomberg.com',       cat:'markets', lang:'auto'},
+  {id:'thenewslens',  name:'關鍵評論',       url:'https://www.thenewslens.com',     cat:'general', lang:'auto'},
+  {id:'lemonde',      name:'Le Monde',      url:'https://www.lemonde.fr',          cat:'general', lang:'auto'},
+  {id:'bbc',          name:'BBC',           url:'https://www.bbc.com',             cat:'general', lang:'auto'},
+  {id:'leparisien',   name:'Le Parisien',   url:'https://www.leparisien.fr',       cat:'general', lang:'auto'},
+  {id:'france24',     name:'France 24',     url:'https://www.france24.com',        cat:'general', lang:'auto'},
+  {id:'npr',          name:'NPR',           url:'https://www.npr.org',             cat:'general', lang:'auto'},
+  {id:'twreporter',   name:'報導者',         url:'https://www.twreporter.org',      cat:'general', lang:'auto'},
+  {id:'taiwannews',   name:'義美新聞',       url:'https://www.taiwannews.com.tw',   cat:'general', lang:'auto'},
 ];
 
 let DB = {
@@ -562,8 +557,11 @@ function init(){
   renderSourceNewsFeed();
   renderTickerTags();
   updateStats();
-  // Merge default sources if none saved
-  if(!DB.sources||DB.sources.length===0) DB.sources=[...DEFAULT_SOURCES];
+  // Merge default sources — add any new defaults not already in DB
+  if(!DB.sources) DB.sources=[];
+  DEFAULT_SOURCES.forEach(ds=>{
+    if(!DB.sources.find(s=>s.id===ds.id)) DB.sources.push(ds);
+  });
 
   // If no keys set, nudge user to settings
   if(!gk || !nk){
@@ -680,38 +678,43 @@ async function fetchWithGeminiSearch(key, count){
     ? `\n5. Custom Sources (incorporate these fetched articles):\n${srcLines.join('\n')}\n`
     : '';
 
-  const prompt = `Today is ${today}. Search for today's real news and return a morning brief.
+  const prompt = `Today is ${today}. Search for today's latest real news.
 
-Search for and include REAL news from today across these areas:
-1. Technology: AI, semiconductors, NVIDIA, Apple, software, chips
-2. Biomedical: FDA approvals, biotech, clinical trials, healthcare
-3. Markets: stock market, Fed, earnings, Wall Street, economy
-4. General & Geopolitics: world news, US-China relations, trade war, elections, international politics, macro geopolitical trends
-${srcSection}Stocks: news about these tickers: ${tickerList}
+Rules:
+- Keep ALL text (headlines, descriptions, sources) in the ORIGINAL language of the article. Do NOT translate anything.
+- For general news: return headline + original description only, no rewriting.
+- For stock-related news: add one short English sentence of analysis + sentiment tag.
 
-Return ONLY valid JSON (no markdown):
+Search these areas and return ${count} items each:
+1. Technology: AI, semiconductors, Apple, NVIDIA, software, chips
+2. Biomedical: FDA, biotech, clinical trials, healthcare
+3. Markets: stock market, Fed, earnings, Wall Street, economy, macro
+4. General & Geopolitics: world news, US-China, trade war, elections, international politics
+${srcSection}
+For these specific stock tickers, find any relevant news and add a 1-sentence analysis + sentiment:
+${tickerList}
+
+These are the user's holdings — flag anything relevant to: semiconductors, AI chips, cybersecurity, fintech, health insurance, defense, streaming, aerospace, ETFs.
+
+Return ONLY valid JSON (no markdown, no backticks):
 {
-  "summary": "3-sentence executive summary in the same language as the majority of today's news sources. Do NOT translate — keep the original language of each article.",
   "tech": [
-    {"headline":"real headline","summary":"2-3 sentence analysis","source":"publication name","relevance":"why this matters","tags":["AI","chips"],"time":"Today","url":"https://..."}
+    {"headline":"original headline","description":"original article description unchanged","source":"publication","time":"Today","url":"https://...","stockRelevance":"if relevant to any holding, say which ticker and why. else empty string"}
   ],
-  "biomedical": [ same structure, ${count} real items ],
-  "markets": [ same structure, ${count} real items ],
-  "geo": [
-    {"headline":"real geopolitics/world news","summary":"2-3 sentence analysis","source":"publication","relevance":"why this matters","tags":["geopolitics"],"time":"Today","url":"https://"}
-  ],
+  "biomedical": [ same structure, ${count} items ],
+  "markets": [ same structure, ${count} items ],
+  "geo": [ same structure, ${count} items ],
   "stockNews": {
-    "NVDA": [{"headline":"...","summary":"...","source":"...","sentiment":"bullish/bearish/neutral","url":"https://..."}],
+    "NVDA": [{"headline":"original headline","description":"original description","source":"...","analysis":"1 sentence English analysis","sentiment":"bullish/bearish/neutral","url":"https://..."}],
     "AAPL": [...], "TSM": [...], "ASML": [...], "MRVL": [...], "NET": [...],
     "TSLA": [...], "HIMS": [...], "NNOX": [...], "NU": [...], "OSCR": [...],
     "S": [...], "SOFI": [...], "VRNS": [...], "ONDS": [...], "BRK-B": [...],
     "DIS": [...], "GE": [...], "BAH": [...], "VTI": []
   }
-}
-Include ${count} items each for tech, biomedical, markets, geo. For each stock 1-2 items. Use real URLs where possible.`;
+}`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -746,10 +749,6 @@ Include ${count} items each for tech, biomedical, markets, geo. For each stock 1
 // RENDER
 // ══════════════════════════════════════════
 function renderDigest(result, raw){
-  if(result.summary){
-    document.getElementById('summaryCard').style.display='block';
-    document.getElementById('summaryText').textContent = result.summary;
-  }
   const grid = document.getElementById('digestGrid');
   grid.innerHTML = `
     ${makeCard('','💻 Technology', result.tech||[], 3)}
@@ -769,11 +768,11 @@ function makeCard(type, label, items, limit){
       ${shown.map(i=>`
         <div class="news-item" onclick='openArticle(${JSON.stringify(i).replace(/'/g,"&#39;")})'>
           <div class="nhead">${escHtml(i.headline)}</div>
-          <div class="nsummary">${escHtml(i.summary||i.description||'')}</div>
+          <div class="nsummary">${escHtml(i.description||i.summary||'')}</div>
+          ${i.stockRelevance?`<div style="font-size:11px;color:var(--accent2);margin-top:3px;font-style:italic;">⚡ ${escHtml(i.stockRelevance)}</div>`:''}
           <div class="nmeta">
             <span class="nsource">${escHtml(i.source||'')}</span>
             <span class="ntime">${i.time||formatDate(i.publishedAt)||'Today'}</span>
-            ${(i.tags||[]).map(t=>`<span class="ntag">${escHtml(t)}</span>`).join('')}
           </div>
         </div>`).join('')}
     </div>`;
@@ -989,9 +988,7 @@ async function processNl(){
 
   const nl = DB.nlSources.find(n=>n.id===currentNlId);
   const lang = nl?.lang||'EN';
-  const langNote = lang==='繁中' ? 'Respond entirely in Traditional Chinese (繁體中文).'
-    : lang==='EN/繁中' ? 'Match the language of each section.'
-    : 'Respond in English.';
+  const langNote = 'Keep ALL text in the original language of the newsletter. Do NOT translate anything.';
 
   const prompt = `Summarize this newsletter issue. ${langNote}
 Return ONLY valid JSON:
@@ -1002,7 +999,7 @@ ${text.substring(0,4000)}`;
 
   try{
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
       {method:'POST',headers:{'Content-Type':'application/json'},
        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}})}
     );
@@ -1034,8 +1031,8 @@ function addNewsletter(){
 // ══════════════════════════════════════════
 // CUSTOM SOURCES
 // ══════════════════════════════════════════
-const CAT_LABEL = {tech:'💻 科技', bio:'🧬 生醫', markets:'🏦 市場', general:'📰 綜合', tw:'🇹🇼 台灣媒體'};
-const CAT_COLOR = {tech:'var(--accent2)', bio:'var(--success)', markets:'var(--gold)', general:'var(--muted)', tw:'var(--accent)'};
+const CAT_LABEL = {tech:'💻 科技', bio:'🧬 生醫', markets:'🏦 市場', general:'📰 綜合'};
+const CAT_COLOR = {tech:'var(--accent2)', bio:'var(--success)', markets:'var(--gold)', general:'var(--muted)'};
 
 function renderSources(){
   const grid = document.getElementById('sourcesGrid');
@@ -1094,11 +1091,7 @@ async function fetchSource(id){
   const statusEl = document.getElementById('src-status-'+id);
   if(statusEl){ statusEl.style.color='var(--muted)'; statusEl.textContent='⏳ 正在抓取…'; }
 
-  const langNote = src.lang==='繁中'
-    ? '請用繁體中文摘要。'
-    : src.lang==='auto'
-    ? '請用與原文相同的語言摘要。'
-    : 'Summarize in English.';
+  const langNote = 'Keep ALL text in the original language of the source. Do NOT translate headlines or descriptions.';
 
   const today = new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
   const prompt = `Today is ${today}. Please visit this website and find the latest news articles or posts: ${src.url}
@@ -1125,7 +1118,7 @@ Find up to 5 recent articles. Include real URLs if possible.`;
   async function callGemini(prompt, retries=3){
     for(let i=0;i<retries;i++){
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
         {method:'POST',headers:{'Content-Type':'application/json'},
          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.1}})}
       );
@@ -1209,7 +1202,7 @@ function addSource(){
   const name = document.getElementById('newSrcName').value.trim();
   const url  = document.getElementById('newSrcUrl').value.trim();
   const cat  = document.getElementById('newSrcCat').value;
-  const lang = document.getElementById('newSrcLang').value;
+  const lang = 'auto';
   if(!name||!url){ alert('請填入名稱和網址。'); return; }
   if(!url.startsWith('http')){ alert('網址需以 http:// 或 https:// 開頭。'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-')+'-'+Date.now().toString(36);
@@ -1268,10 +1261,7 @@ async function fetchNlLatest(id, name, lang, author){
   const cardEl   = document.getElementById('nl-card-'+id);
   if(statusEl) statusEl.textContent = '⏳ Searching for latest issue…';
 
-  const langNote = lang==='繁中'
-    ? 'Write the summary and key points in Traditional Chinese (繁體中文). Keep the title in its original language.'
-    : lang==='EN/繁中' ? 'Match the language of each section.'
-    : 'Respond in English.';
+  const langNote = 'Keep ALL text in the original language of the newsletter. Do NOT translate anything.';
 
   const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   const prompt = `Today is ${today}. Search for the most recent published issue of the newsletter "${name}" by ${author||name}.
@@ -1293,7 +1283,7 @@ Return ONLY valid JSON (no markdown, no backticks):
     let res;
     for(let i=0;i<3;i++){
       res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
         {method:'POST',headers:{'Content-Type':'application/json'},
          body:JSON.stringify({contents:[{parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.1}})}
       );
@@ -1497,40 +1487,28 @@ function openArticle(item){
   // Build body — show AI summary + full description/content if available
   let bodyHtml = '';
 
-  if(item.summary){
+  // Original description (no rewriting)
+  const desc = item.description || item.summary || item.content || '';
+  if(desc){
+    bodyHtml += `<p style="font-size:14px;line-height:1.8;color:#222;margin-bottom:16px;">${escHtml(desc)}</p>`;
+  }
+
+  // Stock relevance flag
+  if(item.stockRelevance){
+    bodyHtml += `<div style="padding:10px 14px;background:#e8f4fd;border-left:3px solid var(--accent2);margin-bottom:12px;font-size:13px;color:var(--accent2);">⚡ ${escHtml(item.stockRelevance)}</div>`;
+  }
+
+  // Stock analysis (only for stock news items)
+  if(item.analysis){
     bodyHtml += `
-      <div style="background:var(--paper2);border-left:3px solid var(--accent2);padding:12px 16px;margin-bottom:16px;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--accent2);margin-bottom:6px;">AI Summary</div>
-        <p style="font-size:13.5px;line-height:1.7;">${escHtml(item.summary)}</p>
+      <div style="padding:11px 14px;background:var(--paper2);border-left:3px solid var(--gold);margin-bottom:12px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:5px;">Analysis</div>
+        <p style="font-size:13.5px;line-height:1.7;">${escHtml(item.analysis)}</p>
       </div>`;
-  }
-
-  if(item.description && item.description !== item.summary){
-    bodyHtml += `
-      <div style="margin-bottom:14px;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Article Preview</div>
-        <p style="font-size:14px;line-height:1.75;color:#222;">${escHtml(item.description)}</p>
-      </div>`;
-  }
-
-  if(item.content && item.content !== item.description){
-    // NewsAPI truncates content — show what we have
-    const cleaned = item.content.replace(/\[\+\d+ chars\]$/,'').trim();
-    if(cleaned){
-      bodyHtml += `
-        <div style="margin-bottom:14px;">
-          <p style="font-size:14px;line-height:1.75;color:#222;">${escHtml(cleaned)}</p>
-          <p style="font-size:11.5px;color:var(--muted);margin-top:8px;font-style:italic;">Article continues at source →</p>
-        </div>`;
-    }
-  }
-
-  if(item.relevance){
-    bodyHtml += `<p style="margin-top:12px;padding:11px;background:#fef9e7;border-left:3px solid var(--gold);font-style:italic;font-size:13px;color:#7a6000;">${escHtml(item.relevance)}</p>`;
   }
 
   if(item.sentiment){
-    bodyHtml += `<p style="margin-top:12px;"><strong>Sentiment:</strong> <span class="sentiment ${item.sentiment}" style="padding:3px 10px;font-size:12px;">${item.sentiment}</span></p>`;
+    bodyHtml += `<p style="margin-top:8px;"><strong>Sentiment:</strong> <span class="sentiment ${item.sentiment}" style="padding:3px 10px;font-size:12px;">${item.sentiment}</span></p>`;
   }
 
   document.getElementById('artBody').innerHTML = bodyHtml;
@@ -1596,7 +1574,6 @@ init();
         <option value="bio">生醫</option>
         <option value="markets">市場</option>
         <option value="general">綜合</option>
-        <option value="tw">台灣媒體</option>
       </select>
     </div>
     <div class="srow">
