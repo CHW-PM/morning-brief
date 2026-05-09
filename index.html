@@ -205,6 +205,7 @@ body { background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans'
     <div class="nav-item" onclick="showPage('sourcenews')"><span class="icon">🌐</span> 來源新聞</div>
     <div class="nav-section-label">Newsletters</div>
     <div class="nav-item" onclick="showPage('newsletters')"><span class="icon">✉️</span> Subscriptions</div>
+    <div class="nav-item" onclick="showPage('podcasts')"><span class="icon">🎙️</span> Podcasts</div>
     <div class="nav-item" onclick="showPage('sources')"><span class="icon">🌐</span> 新聞來源</div>
     <div class="nav-section-label">Data & Settings</div>
     <div class="nav-item" onclick="showPage('database')"><span class="icon">🗄️</span> Database</div>
@@ -448,6 +449,42 @@ body { background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans'
       <div id="sourcesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
     </div>
 
+
+    <!-- PAGE: PODCASTS -->
+    <div class="page" id="page-podcasts">
+      <div class="digest-header">
+        <div class="digest-title">Podcasts</div>
+        <div class="digest-meta" id="podcastCount">— 個節目</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+        <div class="alert info" style="margin-bottom:0;flex:1;">🎙️ 有新集數時自動顯示連結。完全免費，不花 token。點標題直接前往收聽。</div>
+        <button class="fetch-btn" onclick="fetchAllPodcasts()">⚡ 全部更新</button>
+      </div>
+
+      <div class="settings-box" style="margin-bottom:20px;">
+        <div class="settings-title">新增 Podcast</div>
+        <div class="srow">
+          <span class="slabel">名稱</span>
+          <input class="sinput" id="newPodName" placeholder="e.g. 股癌" style="max-width:220px;" />
+        </div>
+        <div class="srow">
+          <span class="slabel">RSS Feed URL</span>
+          <input class="sinput" id="newPodRss" placeholder="https://feed.soundon.fm/..." />
+        </div>
+        <div class="srow">
+          <span class="slabel">語言</span>
+          <select class="sinput" id="newPodLang" style="max-width:120px;">
+            <option value="繁中">繁中</option>
+            <option value="EN">English</option>
+            <option value="中文">中文</option>
+          </select>
+        </div>
+        <button class="btn-sec" onclick="addPodcast()">+ 新增</button>
+      </div>
+
+      <div id="podcastGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;"></div>
+    </div>
+
   </div><!-- /content -->
 
   <div class="status-bar">
@@ -518,6 +555,35 @@ const DEFAULT_NL = [
   {id:'stratechery',name:'Stratechery',author:'Ben Thompson',lang:'EN'}
 ];
 
+const DEFAULT_PODCASTS = [
+  {id:'gooaye',      name:'股癌 Gooaye',          lang:'繁中', cat:'markets',
+   rss:'https://feed.soundon.fm/podcasts/b0bf3d49-0bb3-4d51-a462-a9a9dcc42253.xml'},
+  {id:'techwav',     name:'科技浪 Tech.wav',        lang:'繁中', cat:'tech',
+   rss:'https://feed.firstory.me/rss/user/cm3o5681s06e801v3fxpjehwb'},
+  {id:'mannynews',   name:'曼報',                   lang:'繁中', cat:'tech',
+   rss:'https://feed.firstory.me/rss/user/ckb7oop2y0yit0873vc36njil'},
+  {id:'mario',       name:'馬力歐陪你喝一杯',        lang:'繁中', cat:'general',
+   rss:'https://omny.fm/shows/mario-with-you/playlists/podcast.rss'},
+  {id:'techjob',     name:'科技工作講',              lang:'繁中', cat:'tech',
+   rss:'https://feed.firstory.me/rss/user/cky7yqvnr7o0f0872fkq6l6a7'},
+  {id:'sv101',       name:'硅谷101',                lang:'中文', cat:'tech',
+   rss:'https://feeds.fireside.fm/sv101/rss'},
+  {id:'commute',     name:'台灣通勤第一品牌',         lang:'繁中', cat:'general',
+   rss:'https://feed.firstory.me/rss/user/cknfhjuuqv2zr0821wzrxep3p'},
+  {id:'tsaobaovi',   name:'曾寶儀的人生藏寶圖',       lang:'繁中', cat:'general',
+   rss:'https://feed.firstory.me/rss/user/ckiizmo2k24ap0872jc7qeho6'},
+  {id:'statdog',     name:'財報狗',                  lang:'繁中', cat:'markets',
+   rss:'https://feed.firstory.me/rss/user/statementdog'},
+  {id:'ieo',         name:'IEO看什麼',               lang:'繁中', cat:'markets',
+   rss:'https://feed.soundon.fm/podcasts/c92cb66a-14fc-412f-84aa-08125add5ca9.xml'},
+  {id:'readnext',    name:'下一本讀什麼',             lang:'繁中', cat:'general',
+   rss:'https://feed.firstory.me/rss/user/readingoutpost'},
+  {id:'acquired',    name:'Acquired',               lang:'EN',   cat:'tech',
+   rss:'https://feeds.transistor.fm/acquired'},
+  {id:'therealstory',name:'The Real Story',          lang:'EN',   cat:'geo',
+   rss:'https://podcasts.files.bbci.co.uk/p002vsmz.rss'},
+];
+
 const DEFAULT_SOURCES = [
   {id:'technews-tw',  name:'科技新報',      url:'https://technews.tw',            cat:'tech',    lang:'auto'},
   {id:'ithome',       name:'iThome',        url:'https://www.ithome.com.tw',       cat:'tech',    lang:'auto'},
@@ -541,7 +607,9 @@ let DB = {
   tickers:[...DEFAULT_TICKERS],
   nlSources:[...DEFAULT_NL],
   sources:[...DEFAULT_SOURCES],
-  sourceNews:{}
+  sourceNews:{},
+  podcasts:[...DEFAULT_PODCASTS],
+  podcastEpisodes:{}
 };
 
 let currentNlId = null;
@@ -563,6 +631,11 @@ function init(){
   DEFAULT_TICKERS.forEach(dt=>{
     if(!DB.tickers.find(t=>t.sym===dt.sym)) DB.tickers.push(dt);
   });
+  // Merge default podcasts
+  if(!DB.podcasts) DB.podcasts=[];
+  DEFAULT_PODCASTS.forEach(dp=>{
+    if(!DB.podcasts.find(p=>p.id===dp.id)) DB.podcasts.push(dp);
+  });
 
   // Load keys
   const gk = localStorage.getItem('geminiKey');
@@ -574,6 +647,7 @@ function init(){
   renderNl();
   renderSources();
   renderSourceNewsFeed();
+  renderPodcasts();
   renderTickerTags();
   updateStats();
   // Restore last prices on load
@@ -627,7 +701,7 @@ function buildTicker(){
 // ══════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════
-const TITLES = {digest:"Today's Brief",stocks:'My Portfolio',tech:'Technology',bio:'Biomedical',markets:'Markets',geo:'General & Geopolitics',sourcenews:'來源新聞',newsletters:'Newsletters',sources:'自訂新聞來源',database:'Database',settings:'Settings'};
+const TITLES = {digest:"Today's Brief",stocks:'My Portfolio',tech:'Technology',bio:'Biomedical',markets:'Markets',geo:'General & Geopolitics',sourcenews:'來源新聞',newsletters:'Newsletters',podcasts:'Podcasts',sources:'自訂新聞來源',database:'Database',settings:'Settings'};
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('visible'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -701,6 +775,7 @@ function updateTickerStrip(prices){
     return `<span class="ticker-item"><span class="tsym">${t.sym}</span> <span>$${p.price.toFixed(2)}</span> <span class="tchg ${dir}">${arrow}${pct}%</span></span>`;
   });
   document.getElementById('tickerEl').innerHTML = items.join('');
+  const priceCount = Object.keys(prices).length;
   const sdot = document.getElementById('sdotFinnhub');
   const slbl = document.getElementById('sFinnhub');
   if(sdot) sdot.style.background = priceCount > 0 ? '#4caf50' : '#aaa';
@@ -875,6 +950,7 @@ function renderDigest(result, raw){
     ${makeStockHighlights(result.stockNews||{})}
     ${makeSourceHighlights()}
     ${makeNewsletterHighlights()}
+    ${makePodcastHighlights()}
   `;
 }
 
@@ -1374,6 +1450,164 @@ function removeSource(id){
   saveDB();
   renderSources();
 }
+// ══════════════════════════════════════════
+// PODCASTS — Pure RSS, zero tokens
+// ══════════════════════════════════════════
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const CAT_POD = {tech:'💻 科技', markets:'🏦 市場', general:'📰 綜合', geo:'🌍 地緣', bio:'🧬 生醫'};
+
+function renderPodcasts(){
+  const grid = document.getElementById('podcastGrid');
+  if(!grid) return;
+  const pods = DB.podcasts||[];
+  const countEl = document.getElementById('podcastCount');
+  if(countEl) countEl.textContent = pods.length + ' 個節目';
+  grid.innerHTML = '';
+
+  pods.forEach(pod=>{
+    const eps = (DB.podcastEpisodes[pod.id]||[]).slice(0,3);
+    const latest = eps[0];
+    const div = document.createElement('div');
+    div.className = 'nl-card';
+    div.id = 'pod-card-'+pod.id;
+    div.style.borderLeftColor = 'var(--accent)';
+
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div class="nl-name" style="font-size:14.5px;">${escHtml(pod.name)}</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 6px;background:var(--paper2);border:1px solid var(--border);">${CAT_POD[pod.cat]||pod.cat}</span>
+      </div>
+      <div class="nl-lang">${pod.lang}</div>
+      ${latest ? `
+        <div style="margin-top:8px;">
+          ${eps.map(ep=>`
+            <div style="padding:6px 0;border-bottom:1px solid var(--border);">
+              <a href="${escHtml(ep.link||'#')}" target="_blank" rel="noopener"
+                 style="font-family:'Playfair Display',serif;font-size:13px;font-weight:600;color:var(--accent2);text-decoration:none;line-height:1.35;display:block;">
+                ${escHtml(ep.title)}
+              </a>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--muted);">${ep.pubDate||''}</span>
+            </div>`).join('')}
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-top:6px;">
+          更新於 ${(DB.podcastFetchTime||{[pod.id]:''})[pod.id]?.split('T')[0]||''}
+        </div>` 
+      : `<div class="nl-excerpt">尚未抓取。點更新。</div>`}
+      <div id="pod-status-${pod.id}" style="font-size:11px;color:var(--muted);min-height:16px;margin-top:6px;"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        <button class="nl-btn" style="background:var(--accent2);color:#fff;border-color:var(--accent2);"
+          onclick="fetchPodcast('${pod.id}')">⚡ 更新</button>
+        <button class="nl-btn" style="border-color:var(--accent);color:var(--accent);"
+          onclick="removePodcast('${pod.id}')">✕ 刪除</button>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+async function fetchPodcast(id){
+  const pod = (DB.podcasts||[]).find(p=>p.id===id);
+  if(!pod) return;
+  const statusEl = document.getElementById('pod-status-'+id);
+  if(statusEl){ statusEl.style.color='var(--muted)'; statusEl.textContent='⏳ 抓取中…'; }
+
+  try{
+    const url = CORS_PROXY + encodeURIComponent(pod.rss);
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'application/xml');
+    const items = Array.from(xml.querySelectorAll('item')).slice(0,3);
+
+    const episodes = items.map(item=>({
+      title: item.querySelector('title')?.textContent?.trim()||'',
+      link: item.querySelector('enclosure')?.getAttribute('url') ||
+            item.querySelector('link')?.textContent?.trim() || '',
+      pubDate: (() => {
+        const d = item.querySelector('pubDate')?.textContent;
+        if(!d) return '';
+        try{ return new Date(d).toLocaleDateString('zh-TW',{month:'short',day:'numeric'}); }
+        catch(e){ return d.substring(0,10); }
+      })()
+    }));
+
+    if(!DB.podcastEpisodes) DB.podcastEpisodes = {};
+    if(!DB.podcastFetchTime) DB.podcastFetchTime = {};
+    DB.podcastEpisodes[id] = episodes;
+    DB.podcastFetchTime[id] = new Date().toISOString();
+    saveDB();
+    renderPodcasts();
+
+    const newStatus = document.getElementById('pod-status-'+id);
+    if(newStatus){ newStatus.style.color='var(--success)'; newStatus.textContent='✅ 找到 '+episodes.length+' 集'; setTimeout(()=>newStatus.textContent='',3000); }
+  }catch(e){
+    if(statusEl){ statusEl.style.color='var(--accent)'; statusEl.textContent='❌ '+e.message; }
+  }
+}
+
+async function fetchAllPodcasts(){
+  const btn = document.querySelector('[onclick="fetchAllPodcasts()"]');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ 更新中…'; }
+  for(const pod of (DB.podcasts||[])){
+    await fetchPodcast(pod.id);
+    await new Promise(r=>setTimeout(r,500));
+  }
+  if(btn){ btn.disabled=false; btn.textContent='⚡ 全部更新'; }
+}
+
+function addPodcast(){
+  const name = document.getElementById('newPodName').value.trim();
+  const rss  = document.getElementById('newPodRss').value.trim();
+  const lang = document.getElementById('newPodLang').value;
+  if(!name||!rss){ alert('請填入名稱和 RSS feed URL。'); return; }
+  if(!rss.startsWith('http')){ alert('RSS URL 需以 http 開頭。'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g,'-')+'-'+Date.now().toString(36);
+  if(!DB.podcasts) DB.podcasts=[];
+  DB.podcasts.push({id,name,rss,lang,cat:'general'});
+  saveDB(); renderPodcasts();
+  document.getElementById('newPodName').value='';
+  document.getElementById('newPodRss').value='';
+}
+
+function removePodcast(id){
+  const pod = (DB.podcasts||[]).find(p=>p.id===id);
+  if(!pod||!confirm('移除「'+pod.name+'」？')) return;
+  DB.podcasts = DB.podcasts.filter(p=>p.id!==id);
+  delete DB.podcastEpisodes[id];
+  saveDB(); renderPodcasts();
+}
+
+// Show new episodes in Today's Brief
+function makePodcastHighlights(){
+  const today = new Date();
+  const recent = [];
+  (DB.podcasts||[]).forEach(pod=>{
+    const eps = DB.podcastEpisodes?.[pod.id]||[];
+    if(!eps.length) return;
+    const fetchTime = DB.podcastFetchTime?.[pod.id];
+    if(!fetchTime) return;
+    const daysSince = (today - new Date(fetchTime)) / 86400000;
+    if(daysSince > 2) return;
+    recent.push({pod, ep: eps[0]});
+  });
+  if(!recent.length) return '';
+  return `
+    <div class="news-card" style="grid-column:1/-1;border-top-color:var(--accent);">
+      <div class="card-label"><span>🎙️ Podcasts 最新集數</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;">
+        ${recent.map(({pod,ep})=>`
+          <div class="news-item">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--muted);margin-bottom:3px;">${escHtml(pod.name)}</div>
+            <a href="${escHtml(ep.link||'#')}" target="_blank" rel="noopener"
+               style="font-family:'Playfair Display',serif;font-size:13px;font-weight:600;color:var(--accent2);text-decoration:none;display:block;line-height:1.35;">
+              ${escHtml(ep.title)}
+            </a>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--muted);">${ep.pubDate||''}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
 
 function editSource(id){
   const src = (DB.sources||[]).find(s=>s.id===id);
